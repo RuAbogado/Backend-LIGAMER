@@ -1,10 +1,10 @@
-package mx.edu.utez.sicotofbackend;
+package mx.edu.utez.ligamerbackend;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 
 @SpringBootTest
-class SicotofBackendApplicationTests {
+class LigamerBackendApplicationTests {
 
     @Test
     void contextLoads() {
