@@ -1,5 +1,6 @@
 package mx.edu.utez.ligamerbackend.services;
 
+import mx.edu.utez.ligamerbackend.dtos.UserDto;
 import mx.edu.utez.ligamerbackend.models.Role;
 import mx.edu.utez.ligamerbackend.models.User;
 import mx.edu.utez.ligamerbackend.repositories.RoleRepository;
@@ -22,17 +23,21 @@ public class UserService {
     @Autowired
     private PasswordEncoder passwordEncoder;
 
-    public User registerNewUser(User user) throws Exception {
-        if (userRepository.findByEmail(user.getEmail()).isPresent()) {
+    @Transactional
+    public User registerNewUser(UserDto userDto) throws Exception {
+        if (userRepository.findByEmail(userDto.getEmail()).isPresent()) {
             throw new Exception("El correo electrónico ya está registrado.");
         }
 
-        user.setPassword(passwordEncoder.encode(user.getPassword()));
+        User newUser = new User();
+        newUser.setEmail(userDto.getEmail());
+        newUser.setPassword(passwordEncoder.encode(userDto.getPassword()));
+        newUser.setActive(true);
 
         Role userRole = roleRepository.findByName("ROLE_JUGADOR")
                 .orElseThrow(() -> new Exception("Rol de Jugador no encontrado."));
-        user.setRole(userRole);
+        newUser.setRole(userRole);
 
-        return userRepository.save(user);
+        return userRepository.save(newUser);
     }
 }
