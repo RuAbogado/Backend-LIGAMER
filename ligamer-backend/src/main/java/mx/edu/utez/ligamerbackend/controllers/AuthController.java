@@ -1,8 +1,6 @@
 package mx.edu.utez.ligamerbackend.controllers;
 
-import mx.edu.utez.ligamerbackend.dtos.JwtAuthResponseDto;
-import mx.edu.utez.ligamerbackend.dtos.LoginDto;
-import mx.edu.utez.ligamerbackend.dtos.UserDto;
+import mx.edu.utez.ligamerbackend.dtos.*;
 import mx.edu.utez.ligamerbackend.services.JwtService;
 import mx.edu.utez.ligamerbackend.services.UserService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -32,7 +30,7 @@ public class AuthController {
     private JwtService jwtService;
 
     @PostMapping("/register")
-    public ResponseEntity<?> registerUser(@RequestBody UserDto userDto) { // Cambiado a UserDto
+    public ResponseEntity<?> registerUser(@RequestBody UserDto userDto) {
         try {
             userService.registerNewUser(userDto);
             return new ResponseEntity<>("¡Usuario registrado exitosamente!", HttpStatus.CREATED);
@@ -49,10 +47,35 @@ public class AuthController {
 
         SecurityContextHolder.getContext().setAuthentication(authentication);
 
-        // Obtenemos el UserDetails del objeto de autenticación
         UserDetails userDetails = (UserDetails) authentication.getPrincipal();
         String token = jwtService.generateToken(userDetails);
 
         return ResponseEntity.ok(new JwtAuthResponseDto(token));
+    }
+
+    @PostMapping("/forgot-password")
+    public ResponseEntity<?> forgotPassword(@RequestBody ForgotPasswordDto forgotPasswordDto) {
+        System.out.println("!!! --- INTENTANDO ENTRAR A FORGOT-PASSWORD --- !!!");
+        try {
+            userService.generatePasswordResetToken(forgotPasswordDto.getEmail());
+            String successMessage = "Hemos enviado un enlace a tu correo para restablecer tu contraseña. Haz clic en él para seguir con el proceso.";
+            return new ResponseEntity<>(successMessage, HttpStatus.OK);
+        } catch (Exception e) {
+            System.out.println("!!! --- ERROR ATRAPADO EN EL CONTROLADOR --- !!!");
+            e.printStackTrace();
+            return new ResponseEntity<>(e.getMessage(), HttpStatus.BAD_REQUEST);
+        }
+    }
+
+    @PostMapping("/reset-password")
+    public ResponseEntity<?> resetPassword(@RequestBody ResetPasswordDto resetPasswordDto) {
+        try {
+            userService.resetPassword(resetPasswordDto.getToken(), resetPasswordDto.getNewPassword());
+            // Mensaje de éxito según los criterios de aceptación [cite: 127]
+            String successMessage = "Tu contraseña ha sido actualizada. Ya puedes iniciar sesión.";
+            return new ResponseEntity<>(successMessage, HttpStatus.OK);
+        } catch (Exception e) {
+            return new ResponseEntity<>(e.getMessage(), HttpStatus.BAD_REQUEST);
+        }
     }
 }
