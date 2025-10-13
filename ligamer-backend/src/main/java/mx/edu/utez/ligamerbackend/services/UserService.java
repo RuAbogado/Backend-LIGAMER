@@ -92,4 +92,28 @@ public class UserService {
         return userRepository.findByEmail(email)
                 .orElseThrow(() -> new RuntimeException("Usuario no encontrado con el email: " + email));
     }
+
+    @Transactional
+    public User updateProfile(String currentEmail, String newEmail, String currentPassword, String newPassword) throws Exception {
+        User user = userRepository.findByEmail(currentEmail)
+                .orElseThrow(() -> new RuntimeException("Usuario no encontrado."));
+
+        // Si quiere cambiar el email, verificar que no esté en uso
+        if (newEmail != null && !newEmail.equals(currentEmail)) {
+            if (userRepository.findByEmail(newEmail).isPresent()) {
+                throw new Exception("El correo electrónico ya está en uso.");
+            }
+            user.setEmail(newEmail);
+        }
+
+        // Si quiere cambiar la contraseña, verificar la actual
+        if (newPassword != null && !newPassword.isEmpty()) {
+            if (currentPassword == null || !passwordEncoder.matches(currentPassword, user.getPassword())) {
+                throw new Exception("La contraseña actual es incorrecta.");
+            }
+            user.setPassword(passwordEncoder.encode(newPassword));
+        }
+
+        return userRepository.save(user);
+    }
 }
