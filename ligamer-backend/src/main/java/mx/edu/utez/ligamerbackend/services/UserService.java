@@ -86,4 +86,10 @@ public class UserService {
 
         userRepository.save(user);
     }
+
+    @Transactional(readOnly = true)
+    public User findByEmail(String email) {
+        return userRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("Usuario no encontrado con el email: " + email));
+    }
 }
