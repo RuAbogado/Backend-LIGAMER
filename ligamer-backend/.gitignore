@@ -31,3 +31,13 @@ build/
 
 ### VS Code ###
 .vscode/
+
+# Archivos de configuración de IDE
+.idea/
+
+# Ignorar archivos de configuración con secretos
+src/main/resources/application.properties
+
+
+# Carpetas de respaldo
+/Copia de ligamer-backend/
