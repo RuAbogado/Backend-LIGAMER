@@ -5,6 +5,7 @@ import mx.edu.utez.ligamerbackend.models.Role;
 import mx.edu.utez.ligamerbackend.models.User;
 import mx.edu.utez.ligamerbackend.repositories.RoleRepository;
 import mx.edu.utez.ligamerbackend.repositories.UserRepository;
+import mx.edu.utez.ligamerbackend.utils.AppConstants;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
@@ -13,6 +14,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -42,7 +44,7 @@ public class UserService {
         newUser.setPassword(passwordEncoder.encode(userDto.getPassword()));
         newUser.setActive(true);
 
-        Role userRole = roleRepository.findByName("ROLE_JUGADOR")
+        Role userRole = roleRepository.findByName(AppConstants.ROLE_JUGADOR)
                 .orElseThrow(() -> new Exception("Rol de Jugador no encontrado."));
         newUser.setRole(userRole);
 
@@ -77,7 +79,7 @@ public class UserService {
                 .orElseThrow(() -> new RuntimeException("Token de restablecimiento inválido."));
 
         if (user.getResetPasswordTokenExpiry().isBefore(LocalDateTime.now())) {
-            throw new RuntimeException("El enlace de restablecimiento ha caducado. Por favor, solicita uno nuevo."); // [cite: 130]
+            throw new RuntimeException("El enlace de restablecimiento ha caducado. Por favor, solicita uno nuevo.");
         }
 
         user.setPassword(passwordEncoder.encode(newPassword));
@@ -98,7 +100,6 @@ public class UserService {
         User user = userRepository.findByEmail(currentEmail)
                 .orElseThrow(() -> new RuntimeException("Usuario no encontrado."));
 
-        // Si quiere cambiar el email, verificar que no esté en uso
         if (newEmail != null && !newEmail.equals(currentEmail)) {
             if (userRepository.findByEmail(newEmail).isPresent()) {
                 throw new Exception("El correo electrónico ya está en uso.");
@@ -106,7 +107,6 @@ public class UserService {
             user.setEmail(newEmail);
         }
 
-        // Si quiere cambiar la contraseña, verificar la actual
         if (newPassword != null && !newPassword.isEmpty()) {
             if (currentPassword == null || !passwordEncoder.matches(currentPassword, user.getPassword())) {
                 throw new Exception("La contraseña actual es incorrecta.");
@@ -115,5 +115,43 @@ public class UserService {
         }
 
         return userRepository.save(user);
+    }
+
+    public void changePassword(String email, String currentPassword, String newPassword) throws Exception {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("Usuario no encontrado."));
+
+        if (currentPassword == null || !passwordEncoder.matches(currentPassword, user.getPassword())) {
+            throw new Exception("La contraseña actual es incorrecta.");
+        }
+
+        user.setPassword(passwordEncoder.encode(newPassword));
+        userRepository.save(user);
+    }
+
+    @Transactional(readOnly = true)
+    public List<User> listAllUsers() {
+        return userRepository.findAll();
+    }
+
+    @Transactional(readOnly = true)
+    public User getUserById(Long id) {
+        return userRepository.findById(id).orElseThrow(() -> new RuntimeException("Usuario no encontrado."));
+    }
+
+    @Transactional
+    public User updateUserActive(Long id, Boolean active) {
+        User user = userRepository.findById(id).orElseThrow(() -> new RuntimeException("Usuario no encontrado."));
+        if (active != null) user.setActive(active);
+        return userRepository.save(user);
+    }
+
+    @Transactional
+    public void assignOrganizerRole(Long userId, boolean assign) throws Exception {
+        User user = userRepository.findById(userId).orElseThrow(() -> new RuntimeException("Usuario no encontrado."));
+        String targetRoleName = assign ? AppConstants.ROLE_ORGANIZADOR : AppConstants.ROLE_JUGADOR;
+        Role role = roleRepository.findByName(targetRoleName).orElseThrow(() -> new Exception("Rol no encontrado: " + targetRoleName));
+        user.setRole(role);
+        userRepository.save(user);
     }
 }

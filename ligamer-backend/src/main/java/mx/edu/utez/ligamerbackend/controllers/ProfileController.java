@@ -1,5 +1,6 @@
 package mx.edu.utez.ligamerbackend.controllers;
 
+import mx.edu.utez.ligamerbackend.dtos.ChangePasswordDto;
 import mx.edu.utez.ligamerbackend.dtos.UpdateProfileDto;
 import mx.edu.utez.ligamerbackend.models.User;
 import mx.edu.utez.ligamerbackend.services.UserService;
@@ -70,6 +71,18 @@ public class ProfileController {
             return ResponseEntity.ok(response);
         } catch (Exception e) {
             return ResponseEntity.badRequest().body("Error al actualizar el perfil: " + e.getMessage());
+        }
+    }
+
+    @PutMapping("/change-password")
+    public ResponseEntity<?> changePassword(@RequestBody ChangePasswordDto changePasswordDto) {
+        try {
+            Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+            String email = authentication.getName();
+            userService.changePassword(email, changePasswordDto.getCurrentPassword(), changePasswordDto.getNewPassword());
+            return ResponseEntity.ok("Contraseña actualizada exitosamente");
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body("Error al cambiar la contraseña: " + e.getMessage());
         }
     }
 }
