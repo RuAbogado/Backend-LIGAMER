@@ -45,6 +45,12 @@ public class User implements UserDetails {
 
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
+        System.out.println("🔍 DEBUG getAuthorities() - Email: " + this.email + ", Role: " + (this.role != null ? this.role.getName() : "NULL"));
+        if (this.role == null || this.role.getName() == null) {
+            System.out.println("⚠️ Role is NULL for user: " + this.email);
+            return Collections.emptyList();
+        }
+        System.out.println("✅ Returning authority: " + this.role.getName());
         return Collections.singletonList(new SimpleGrantedAuthority(this.role.getName()));
     }
 

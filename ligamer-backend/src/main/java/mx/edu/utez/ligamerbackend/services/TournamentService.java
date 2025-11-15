@@ -19,6 +19,7 @@ import mx.edu.utez.ligamerbackend.repositories.TeamRepository;
 import mx.edu.utez.ligamerbackend.utils.AppConstants;
 import mx.edu.utez.ligamerbackend.dtos.StandingDto;
 import mx.edu.utez.ligamerbackend.dtos.MatchDto;
+import mx.edu.utez.ligamerbackend.dtos.MatchResultDto;
 import mx.edu.utez.ligamerbackend.models.Standing;
 import mx.edu.utez.ligamerbackend.models.Match;
 import mx.edu.utez.ligamerbackend.repositories.StandingRepository;
@@ -248,5 +249,212 @@ public class TournamentService {
         tournament.getTeams().remove(team);
         team.getTournaments().remove(tournament);
         tournamentRepository.save(tournament);
+    }
+
+    public MatchDto registerMatchResult(Long matchId, MatchResultDto resultDto, String requesterEmail) throws Exception {
+        // Verificar que el usuario es organizador o admin
+        User requester = userRepository.findByEmail(requesterEmail)
+                .orElseThrow(() -> new RuntimeException("Usuario no encontrado."));
+
+        String roleName = requester.getRole() != null ? requester.getRole().getName() : null;
+        boolean isOrganizerOrAdmin = AppConstants.ROLE_ORGANIZADOR.equals(roleName) || 
+                                     AppConstants.ROLE_ADMINISTRADOR.equals(roleName);
+
+        if (!isOrganizerOrAdmin) {
+            throw new RuntimeException("No estás autorizado. Solo organizadores pueden registrar resultados.");
+        }
+
+        // Verificar que el partido existe
+        Match match = matchRepository.findById(matchId)
+                .orElseThrow(() -> new RuntimeException("Partido no encontrado."));
+
+        // Validar que los marcadores sean válidos (no negativos)
+        if (resultDto.getHomeScore() == null || resultDto.getAwayScore() == null) {
+            throw new RuntimeException("Los marcadores (homeScore y awayScore) son obligatorios.");
+        }
+
+        if (resultDto.getHomeScore() < 0 || resultDto.getAwayScore() < 0) {
+            throw new RuntimeException("Los marcadores no pueden ser negativos.");
+        }
+
+        // Si es el primer registro del resultado (status era PENDING o IN_PROGRESS)
+        if ("PENDING".equals(match.getStatus()) || "IN_PROGRESS".equals(match.getStatus())) {
+            // Actualizar scores
+            match.setHomeScore(resultDto.getHomeScore());
+            match.setAwayScore(resultDto.getAwayScore());
+            
+            // Establecer status
+            if (resultDto.getStatus() != null) {
+                match.setStatus(resultDto.getStatus());
+            } else {
+                match.setStatus("FINISHED");
+            }
+
+            // Actualizar estadísticas de los equipos (standings)
+            updateStandingsForMatch(match);
+
+            // Guardar el partido
+            Match saved = matchRepository.save(match);
+
+            // Convertir a DTO y retornar
+            return matchToDto(saved);
+        } else {
+            throw new RuntimeException("El partido ya tiene un resultado registrado.");
+        }
+    }
+
+    public MatchDto updateMatchResult(Long matchId, MatchResultDto resultDto, String requesterEmail) throws Exception {
+        // Verificar que el usuario es organizador o admin
+        User requester = userRepository.findByEmail(requesterEmail)
+                .orElseThrow(() -> new RuntimeException("Usuario no encontrado."));
+
+        String roleName = requester.getRole() != null ? requester.getRole().getName() : null;
+        boolean isOrganizerOrAdmin = AppConstants.ROLE_ORGANIZADOR.equals(roleName) || 
+                                     AppConstants.ROLE_ADMINISTRADOR.equals(roleName);
+
+        if (!isOrganizerOrAdmin) {
+            throw new RuntimeException("No estás autorizado. Solo organizadores pueden actualizar resultados.");
+        }
+
+        // Verificar que el partido existe
+        Match match = matchRepository.findById(matchId)
+                .orElseThrow(() -> new RuntimeException("Partido no encontrado."));
+
+        // Validar que los marcadores sean válidos
+        if (resultDto.getHomeScore() == null || resultDto.getAwayScore() == null) {
+            throw new RuntimeException("Los marcadores (homeScore y awayScore) son obligatorios.");
+        }
+
+        if (resultDto.getHomeScore() < 0 || resultDto.getAwayScore() < 0) {
+            throw new RuntimeException("Los marcadores no pueden ser negativos.");
+        }
+
+        // Verificar que el partido tiene resultado previo
+        if ("PENDING".equals(match.getStatus())) {
+            throw new RuntimeException("El partido no tiene un resultado registrado aún. Use el endpoint POST para registrar.");
+        }
+
+        // Guardar scores anteriores para revertir estadísticas si es necesario
+        Integer oldHomeScore = match.getHomeScore();
+        Integer oldAwayScore = match.getAwayScore();
+
+        // Actualizar scores
+        match.setHomeScore(resultDto.getHomeScore());
+        match.setAwayScore(resultDto.getAwayScore());
+
+        // Actualizar status si se proporciona
+        if (resultDto.getStatus() != null) {
+            match.setStatus(resultDto.getStatus());
+        }
+
+        // Revertir estadísticas antiguas y aplicar las nuevas
+        revertStandingsForMatch(match, oldHomeScore, oldAwayScore);
+        updateStandingsForMatch(match);
+
+        // Guardar el partido actualizado
+        Match saved = matchRepository.save(match);
+
+        return matchToDto(saved);
+    }
+
+    private void updateStandingsForMatch(Match match) {
+        Tournament tournament = match.getTournament();
+        Team homeTeam = match.getHomeTeam();
+        Team awayTeam = match.getAwayTeam();
+
+        // Obtener o crear standings para ambos equipos
+        Standing homeStanding = standingRepository.findByTournamentAndTeamId(tournament, homeTeam.getId())
+                .orElse(new Standing());
+        Standing awayStanding = standingRepository.findByTournamentAndTeamId(tournament, awayTeam.getId())
+                .orElse(new Standing());
+
+        // Inicializar si no existen
+        if (homeStanding.getId() == null) {
+            homeStanding.setTournament(tournament);
+            homeStanding.setTeam(homeTeam);
+            homeStanding.setPlayed(0);
+            homeStanding.setWon(0);
+            homeStanding.setDrawn(0);
+            homeStanding.setLost(0);
+            homeStanding.setGoalsFor(0);
+            homeStanding.setGoalsAgainst(0);
+            homeStanding.setPoints(0);
+        }
+
+        if (awayStanding.getId() == null) {
+            awayStanding.setTournament(tournament);
+            awayStanding.setTeam(awayTeam);
+            awayStanding.setPlayed(0);
+            awayStanding.setWon(0);
+            awayStanding.setDrawn(0);
+            awayStanding.setLost(0);
+            awayStanding.setGoalsFor(0);
+            awayStanding.setGoalsAgainst(0);
+            awayStanding.setPoints(0);
+        }
+
+        // Actualizar estadísticas
+        homeStanding.updateFromMatch(match.getHomeScore(), match.getAwayScore(), true);
+        awayStanding.updateFromMatch(match.getHomeScore(), match.getAwayScore(), false);
+
+        // Guardar
+        standingRepository.save(homeStanding);
+        standingRepository.save(awayStanding);
+    }
+
+    private void revertStandingsForMatch(Match match, Integer oldHomeScore, Integer oldAwayScore) {
+        Tournament tournament = match.getTournament();
+        Team homeTeam = match.getHomeTeam();
+        Team awayTeam = match.getAwayTeam();
+
+        Standing homeStanding = standingRepository.findByTournamentAndTeamId(tournament, homeTeam.getId())
+                .orElseThrow(() -> new RuntimeException("Standing del equipo local no encontrado."));
+        Standing awayStanding = standingRepository.findByTournamentAndTeamId(tournament, awayTeam.getId())
+                .orElseThrow(() -> new RuntimeException("Standing del equipo visitante no encontrado."));
+
+        // Crear un match temporal con los scores antiguos para revertir
+        Match oldMatch = new Match();
+        oldMatch.setHomeScore(oldHomeScore);
+        oldMatch.setAwayScore(oldAwayScore);
+
+        // Revertir (usando lógica inversa)
+        revertStandingStats(homeStanding, oldMatch, true);
+        revertStandingStats(awayStanding, oldMatch, false);
+
+        standingRepository.save(homeStanding);
+        standingRepository.save(awayStanding);
+    }
+
+    private void revertStandingStats(Standing standing, Match oldMatch, boolean isHomeTeam) {
+        int goalsFor = isHomeTeam ? oldMatch.getHomeScore() : oldMatch.getAwayScore();
+        int goalsAgainst = isHomeTeam ? oldMatch.getAwayScore() : oldMatch.getHomeScore();
+
+        standing.setGoalsFor(standing.getGoalsFor() - goalsFor);
+        standing.setGoalsAgainst(standing.getGoalsAgainst() - goalsAgainst);
+        standing.setPlayed(standing.getPlayed() - 1);
+
+        if (goalsFor > goalsAgainst) {
+            standing.setWon(standing.getWon() - 1);
+            standing.setPoints(standing.getPoints() - 3);
+        } else if (goalsFor == goalsAgainst) {
+            standing.setDrawn(standing.getDrawn() - 1);
+            standing.setPoints(standing.getPoints() - 1);
+        } else {
+            standing.setLost(standing.getLost() - 1);
+        }
+    }
+
+    private MatchDto matchToDto(Match match) {
+        MatchDto dto = new MatchDto();
+        dto.setId(match.getId());
+        dto.setHomeTeamName(match.getHomeTeam().getName());
+        dto.setHomeTeamId(match.getHomeTeam().getId());
+        dto.setAwayTeamName(match.getAwayTeam().getName());
+        dto.setAwayTeamId(match.getAwayTeam().getId());
+        dto.setHomeScore(match.getHomeScore());
+        dto.setAwayScore(match.getAwayScore());
+        dto.setMatchDate(match.getMatchDate());
+        dto.setStatus(match.getStatus());
+        return dto;
     }
 }

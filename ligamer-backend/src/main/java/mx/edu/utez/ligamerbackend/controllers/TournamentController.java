@@ -6,10 +6,10 @@ import mx.edu.utez.ligamerbackend.services.TournamentService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.HttpStatus;
-import mx.edu.utez.ligamerbackend.utils.AppConstants;
 import mx.edu.utez.ligamerbackend.dtos.TournamentDetailResponseDto;
 import mx.edu.utez.ligamerbackend.dtos.StandingDto;
 import mx.edu.utez.ligamerbackend.dtos.MatchDto;
+import mx.edu.utez.ligamerbackend.dtos.MatchResultDto;
 import mx.edu.utez.ligamerbackend.dtos.ApiResponseDto;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
@@ -25,8 +25,19 @@ public class TournamentController {
     @Autowired
     private TournamentService tournamentService;
 
+    // Endpoint de prueba para verificar autenticación
+    @GetMapping("/test-auth")
+    public ResponseEntity<ApiResponseDto<String>> testAuth() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        String email = auth.getName();
+        String authorities = auth.getAuthorities().toString();
+        String message = "Usuario: " + email + " | Authorities: " + authorities;
+        System.out.println("🧪 TEST AUTH: " + message);
+        return ResponseEntity.ok(ApiResponseDto.success("Test de autenticación exitoso", message));
+    }
+
     @PostMapping
-    @PreAuthorize("hasAuthority('" + AppConstants.ROLE_ORGANIZADOR + "') or hasAuthority('" + AppConstants.ROLE_ADMINISTRADOR + "')")
+    @PreAuthorize("hasAnyAuthority('ROLE_ORGANIZADOR', 'ROLE_ADMINISTRADOR')")
     public ResponseEntity<ApiResponseDto<TournamentResponseDto>> create(@RequestBody TournamentDto dto) {
         try {
             Authentication auth = SecurityContextHolder.getContext().getAuthentication();
@@ -69,7 +80,7 @@ public class TournamentController {
     }
 
     @PutMapping("/{tournamentId}")
-    @PreAuthorize("hasAuthority('" + AppConstants.ROLE_ORGANIZADOR + "') or hasAuthority('" + AppConstants.ROLE_ADMINISTRADOR + "')")
+    @PreAuthorize("hasAnyAuthority('ROLE_ORGANIZADOR', 'ROLE_ADMINISTRADOR')")
     public ResponseEntity<ApiResponseDto<TournamentResponseDto>> update(@PathVariable Long tournamentId, @RequestBody TournamentDto dto) {
         try {
             Authentication auth = SecurityContextHolder.getContext().getAuthentication();
@@ -86,7 +97,7 @@ public class TournamentController {
     }
 
     @DeleteMapping("/{tournamentId}")
-    @PreAuthorize("hasAuthority('" + AppConstants.ROLE_ADMINISTRADOR + "')")
+    @PreAuthorize("hasAuthority('ROLE_ADMINISTRADOR')")
     public ResponseEntity<ApiResponseDto<Void>> delete(@PathVariable Long tournamentId) {
         try {
             tournamentService.deleteTournament(tournamentId);
@@ -186,6 +197,77 @@ public class TournamentController {
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(ApiResponseDto.error("Error al retirar el equipo: " + e.getMessage()));
+        }
+    }
+
+    @PostMapping("/matches/{matchId}/result")
+    @PreAuthorize("hasAnyAuthority('ROLE_ORGANIZADOR', 'ROLE_ADMINISTRADOR')")
+    public ResponseEntity<ApiResponseDto<MatchDto>> registerMatchResult(
+            @PathVariable Long matchId,
+            @RequestBody MatchResultDto resultDto) {
+        System.out.println("🎯 ENTRANDO a registerMatchResult - matchId: " + matchId);
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        System.out.println("🔑 Authentication: " + auth);
+        System.out.println("👤 Principal: " + (auth != null ? auth.getName() : "NULL"));
+        System.out.println("🛡️ Authorities: " + (auth != null ? auth.getAuthorities() : "NULL"));
+        
+        try {
+            String email = auth.getName();
+            MatchDto match = tournamentService.registerMatchResult(matchId, resultDto, email);
+            return ResponseEntity.status(HttpStatus.CREATED)
+                    .body(ApiResponseDto.success("Resultado del partido registrado exitosamente", match));
+        } catch (RuntimeException e) {
+            if (e.getMessage().contains("no encontrado")) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body(ApiResponseDto.notFound(e.getMessage()));
+            } else if (e.getMessage().contains("ya tiene un resultado")) {
+                return ResponseEntity.status(HttpStatus.CONFLICT)
+                        .body(ApiResponseDto.conflict(e.getMessage()));
+            } else if (e.getMessage().contains("autorizado")) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                        .body(ApiResponseDto.unauthorized(e.getMessage()));
+            } else {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                        .body(ApiResponseDto.badRequest(e.getMessage()));
+            }
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponseDto.error("Error al registrar el resultado: " + e.getMessage()));
+        }
+    }
+
+    @PutMapping("/matches/{matchId}/result")
+    @PreAuthorize("hasAnyAuthority('ROLE_ORGANIZADOR', 'ROLE_ADMINISTRADOR')")
+    public ResponseEntity<ApiResponseDto<MatchDto>> updateMatchResult(
+            @PathVariable Long matchId,
+            @RequestBody MatchResultDto resultDto) {
+        System.out.println("🔄 ENTRANDO a updateMatchResult - matchId: " + matchId);
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        System.out.println("🔑 Authentication: " + auth);
+        System.out.println("👤 Principal: " + (auth != null ? auth.getName() : "NULL"));
+        System.out.println("🛡️ Authorities: " + (auth != null ? auth.getAuthorities() : "NULL"));
+        
+        try {
+            String email = auth.getName();
+            MatchDto match = tournamentService.updateMatchResult(matchId, resultDto, email);
+            return ResponseEntity.ok(ApiResponseDto.success("Resultado del partido actualizado exitosamente", match));
+        } catch (RuntimeException e) {
+            if (e.getMessage().contains("no encontrado")) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body(ApiResponseDto.notFound(e.getMessage()));
+            } else if (e.getMessage().contains("no tiene un resultado") || e.getMessage().contains("Use el endpoint POST")) {
+                return ResponseEntity.status(HttpStatus.CONFLICT)
+                        .body(ApiResponseDto.conflict(e.getMessage()));
+            } else if (e.getMessage().contains("autorizado")) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                        .body(ApiResponseDto.unauthorized(e.getMessage()));
+            } else {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                        .body(ApiResponseDto.badRequest(e.getMessage()));
+            }
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponseDto.error("Error al actualizar el resultado: " + e.getMessage()));
         }
     }
 }
