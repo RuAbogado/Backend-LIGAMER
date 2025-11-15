@@ -4,6 +4,7 @@ import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import java.util.HashSet;
 import java.util.Set;
 
 @Entity
@@ -37,4 +38,7 @@ public class Team {
             inverseJoinColumns = @JoinColumn(name = "user_id")
     )
     private Set<User> members;
+
+    @ManyToMany(fetch = FetchType.LAZY, mappedBy = "teams")
+    private Set<Tournament> tournaments = new HashSet<>();
 }

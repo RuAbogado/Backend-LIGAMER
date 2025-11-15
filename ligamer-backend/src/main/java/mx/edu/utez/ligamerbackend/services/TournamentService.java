@@ -187,4 +187,66 @@ public class TournamentService {
             return dto;
         }).collect(Collectors.toList());
     }
+
+    public void enrollTeam(Long tournamentId, Long teamId, String requesterEmail) throws Exception {
+        // Verificar que el torneo existe
+        Tournament tournament = tournamentRepository.findById(tournamentId)
+                .orElseThrow(() -> new RuntimeException("Torneo no encontrado."));
+
+        // Verificar que el equipo existe
+        Team team = teamRepository.findById(teamId)
+                .orElseThrow(() -> new RuntimeException("Equipo no encontrado."));
+
+        // Verificar que el solicitante es el dueño del equipo
+        User requester = userRepository.findByEmail(requesterEmail)
+                .orElseThrow(() -> new RuntimeException("Usuario no encontrado."));
+
+        if (!team.getOwner().getId().equals(requester.getId())) {
+            throw new RuntimeException("No estás autorizado. Solo el dueño del equipo puede inscribirse.");
+        }
+
+        // Verificar que el equipo no está ya inscrito
+        if (tournament.getTeams().contains(team)) {
+            throw new RuntimeException("El equipo ya está inscrito en este torneo.");
+        }
+
+        // Inscribir el equipo
+        tournament.getTeams().add(team);
+        team.getTournaments().add(tournament);
+        tournamentRepository.save(tournament);
+    }
+
+    public void removeTeam(Long tournamentId, Long teamId, String requesterEmail) throws Exception {
+        // Verificar que el torneo existe
+        Tournament tournament = tournamentRepository.findById(tournamentId)
+                .orElseThrow(() -> new RuntimeException("Torneo no encontrado."));
+
+        // Verificar que el equipo existe
+        Team team = teamRepository.findById(teamId)
+                .orElseThrow(() -> new RuntimeException("Equipo no encontrado."));
+
+        // Verificar que el equipo está inscrito en el torneo
+        if (!tournament.getTeams().contains(team)) {
+            throw new RuntimeException("El equipo no está inscrito en este torneo.");
+        }
+
+        // Obtener datos del solicitante
+        User requester = userRepository.findByEmail(requesterEmail)
+                .orElseThrow(() -> new RuntimeException("Usuario no encontrado."));
+
+        // Verificar autorización: dueño del equipo u organizador/admin
+        boolean isTeamOwner = team.getOwner().getId().equals(requester.getId());
+        String roleName = requester.getRole() != null ? requester.getRole().getName() : null;
+        boolean isOrganizerOrAdmin = AppConstants.ROLE_ORGANIZADOR.equals(roleName) || 
+                                     AppConstants.ROLE_ADMINISTRADOR.equals(roleName);
+
+        if (!isTeamOwner && !isOrganizerOrAdmin) {
+            throw new RuntimeException("No estás autorizado para retirar este equipo del torneo.");
+        }
+
+        // Retirar el equipo
+        tournament.getTeams().remove(team);
+        team.getTournaments().remove(tournament);
+        tournamentRepository.save(tournament);
+    }
 }
