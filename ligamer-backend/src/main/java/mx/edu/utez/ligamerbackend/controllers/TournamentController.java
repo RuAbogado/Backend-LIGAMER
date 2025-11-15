@@ -7,6 +7,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import mx.edu.utez.ligamerbackend.utils.AppConstants;
 import mx.edu.utez.ligamerbackend.dtos.TournamentDetailResponseDto;
+import mx.edu.utez.ligamerbackend.dtos.StandingDto;
+import mx.edu.utez.ligamerbackend.dtos.MatchDto;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -56,4 +58,15 @@ public class TournamentController {
         tournamentService.deleteTournament(tournamentId);
         return ResponseEntity.noContent().build();
     }
+
+    @GetMapping("/{tournamentId}/standings")
+    public ResponseEntity<List<StandingDto>> getStandings(@PathVariable Long tournamentId) {
+        return ResponseEntity.ok(tournamentService.getStandings(tournamentId));
+    }
+
+    @GetMapping("/{tournamentId}/matches")
+    public ResponseEntity<List<MatchDto>> getMatches(@PathVariable Long tournamentId) {
+        return ResponseEntity.ok(tournamentService.getMatches(tournamentId));
+    }
 }
+

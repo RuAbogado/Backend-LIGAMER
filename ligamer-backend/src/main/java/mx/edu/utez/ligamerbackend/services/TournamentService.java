@@ -17,6 +17,12 @@ import mx.edu.utez.ligamerbackend.dtos.TournamentDetailResponseDto;
 import mx.edu.utez.ligamerbackend.models.Team;
 import mx.edu.utez.ligamerbackend.repositories.TeamRepository;
 import mx.edu.utez.ligamerbackend.utils.AppConstants;
+import mx.edu.utez.ligamerbackend.dtos.StandingDto;
+import mx.edu.utez.ligamerbackend.dtos.MatchDto;
+import mx.edu.utez.ligamerbackend.models.Standing;
+import mx.edu.utez.ligamerbackend.models.Match;
+import mx.edu.utez.ligamerbackend.repositories.StandingRepository;
+import mx.edu.utez.ligamerbackend.repositories.MatchRepository;
 
 @Service
 @Transactional
@@ -30,6 +36,12 @@ public class TournamentService {
 
     @Autowired
     private TeamRepository teamRepository;
+
+    @Autowired
+    private StandingRepository standingRepository;
+
+    @Autowired
+    private MatchRepository matchRepository;
 
     public TournamentResponseDto createTournament(TournamentDto dto, String creatorEmail) {
         User creator = userRepository.findByEmail(creatorEmail)
@@ -124,5 +136,55 @@ public class TournamentService {
         r.setActive(t.isActive());
         r.setCreatedByEmail(t.getCreatedBy() != null ? t.getCreatedBy().getEmail() : null);
         return r;
+    }
+
+    @Transactional(readOnly = true)
+    public List<StandingDto> getStandings(Long tournamentId) {
+        Tournament tournament = tournamentRepository.findById(tournamentId)
+                .orElseThrow(() -> new RuntimeException("Torneo no encontrado."));
+
+        List<Standing> standings = standingRepository.findByTournamentOrderByPointsDescGoalDifferenceDescGoalsForDesc(tournament);
+        
+        List<StandingDto> result = new java.util.ArrayList<>();
+        int position = 1;
+        for (Standing standing : standings) {
+            StandingDto dto = new StandingDto(
+                    standing.getId(),
+                    standing.getTeam().getName(),
+                    standing.getTeam().getId(),
+                    standing.getPlayed(),
+                    standing.getWon(),
+                    standing.getDrawn(),
+                    standing.getLost(),
+                    standing.getGoalsFor(),
+                    standing.getGoalsAgainst(),
+                    standing.getPoints()
+            );
+            dto.setPosition(position++);
+            result.add(dto);
+        }
+        return result;
+    }
+
+    @Transactional(readOnly = true)
+    public List<MatchDto> getMatches(Long tournamentId) {
+        Tournament tournament = tournamentRepository.findById(tournamentId)
+                .orElseThrow(() -> new RuntimeException("Torneo no encontrado."));
+
+        List<Match> matches = matchRepository.findByTournamentOrderByMatchDateAsc(tournament);
+        
+        return matches.stream().map(match -> {
+            MatchDto dto = new MatchDto();
+            dto.setId(match.getId());
+            dto.setHomeTeamName(match.getHomeTeam().getName());
+            dto.setHomeTeamId(match.getHomeTeam().getId());
+            dto.setAwayTeamName(match.getAwayTeam().getName());
+            dto.setAwayTeamId(match.getAwayTeam().getId());
+            dto.setHomeScore(match.getHomeScore());
+            dto.setAwayScore(match.getAwayScore());
+            dto.setMatchDate(match.getMatchDate());
+            dto.setStatus(match.getStatus());
+            return dto;
+        }).collect(Collectors.toList());
     }
 }
