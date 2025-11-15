@@ -101,6 +101,13 @@ public class TournamentService {
         return toDto(saved);
     }
 
+
+    public void deleteTournament(Long tournamentId) throws Exception {
+        Tournament found = tournamentRepository.findById(tournamentId)
+                .orElseThrow(() -> new RuntimeException("Torneo no encontrado."));
+        tournamentRepository.delete(found);
+    }
+
     @Transactional(readOnly = true)
     public List<TournamentResponseDto> listAll() {
         return tournamentRepository.findAll().stream().map(this::toDto).collect(Collectors.toList());

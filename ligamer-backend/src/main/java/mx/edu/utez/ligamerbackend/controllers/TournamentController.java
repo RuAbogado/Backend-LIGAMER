@@ -49,4 +49,11 @@ public class TournamentController {
         TournamentResponseDto updated = tournamentService.updateTournament(tournamentId, dto, email);
         return ResponseEntity.ok(updated);
     }
+
+    @DeleteMapping("/{tournamentId}")
+    @PreAuthorize("hasAuthority('" + AppConstants.ROLE_ADMINISTRADOR + "')")
+    public ResponseEntity<Void> delete(@PathVariable Long tournamentId) throws Exception {
+        tournamentService.deleteTournament(tournamentId);
+        return ResponseEntity.noContent().build();
+    }
 }
