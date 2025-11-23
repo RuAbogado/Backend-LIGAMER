@@ -45,6 +45,9 @@ public class DataSeeder implements CommandLineRunner {
         String adminPassword = System.getenv().getOrDefault("LIGAMER_ADMIN_PASSWORD", "Pass123!");
         if (userRepository.findByEmail(adminEmail).isEmpty()) {
             User admin = new User();
+            admin.setNombre("Administrador");
+            admin.setApellidoPaterno("Sistema");
+            admin.setApellidoMaterno("LIGAMER");
             admin.setEmail(adminEmail);
             admin.setPassword(passwordEncoder.encode(adminPassword));
             admin.setActive(true);

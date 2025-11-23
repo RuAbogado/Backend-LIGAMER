@@ -33,6 +33,9 @@ public class ProfileController {
             // Preparar la respuesta con la información del perfil
             Map<String, Object> profile = new HashMap<>();
             profile.put("id", user.getId());
+            profile.put("nombre", user.getNombre());
+            profile.put("apellidoPaterno", user.getApellidoPaterno());
+            profile.put("apellidoMaterno", user.getApellidoMaterno());
             profile.put("email", user.getEmail());
             profile.put("active", user.isActive());
             profile.put("role", user.getRole().getName());
@@ -51,18 +54,16 @@ public class ProfileController {
             String currentEmail = authentication.getName();
 
             // Actualizar el perfil del usuario
-            User updatedUser = userService.updateProfile(
-                    currentEmail,
-                    updateProfileDto.getEmail(),
-                    updateProfileDto.getCurrentPassword(),
-                    updateProfileDto.getNewPassword()
-            );
+            User updatedUser = userService.updateProfile(currentEmail, updateProfileDto);
 
             // Preparar la respuesta con la información actualizada
             Map<String, Object> response = new HashMap<>();
-            response.put("message", "Perfil actualizado exitosamente");
+            response.put("message", "Tus datos se han actualizado correctamente.");
             response.put("user", Map.of(
                     "id", updatedUser.getId(),
+                    "nombre", updatedUser.getNombre(),
+                    "apellidoPaterno", updatedUser.getApellidoPaterno(),
+                    "apellidoMaterno", updatedUser.getApellidoMaterno() != null ? updatedUser.getApellidoMaterno() : "",
                     "email", updatedUser.getEmail(),
                     "active", updatedUser.isActive(),
                     "role", updatedUser.getRole().getName()

@@ -1,12 +1,14 @@
 package mx.edu.utez.ligamerbackend.services;
 
 import mx.edu.utez.ligamerbackend.dtos.TeamDto;
+import mx.edu.utez.ligamerbackend.events.*;
 import mx.edu.utez.ligamerbackend.models.*;
 import mx.edu.utez.ligamerbackend.repositories.JoinRequestRepository;
 import mx.edu.utez.ligamerbackend.repositories.TeamRepository;
 import mx.edu.utez.ligamerbackend.repositories.UserRepository;
 import mx.edu.utez.ligamerbackend.utils.AppConstants;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -24,6 +26,9 @@ public class TeamService {
 
     @Autowired
     private JoinRequestRepository joinRequestRepository;
+
+    @Autowired
+    private ApplicationEventPublisher eventPublisher;
 
     public Team createTeam(String ownerEmail, TeamDto teamDto) throws Exception {
         User owner = userRepository.findByEmail(ownerEmail)
@@ -50,7 +55,15 @@ public class TeamService {
         members.add(owner);
         team.setMembers(members);
 
-        return teamRepository.save(team);
+        Team savedTeam = teamRepository.save(team);
+
+        // Publicar evento de equipo creado
+        eventPublisher.publishEvent(new TeamCreatedEvent(this,
+            savedTeam.getId(),
+            savedTeam.getName(),
+            owner.getEmail()));
+
+        return savedTeam;
     }
 
     @Transactional(readOnly = true)
@@ -75,13 +88,26 @@ public class TeamService {
         if (dto.getDescription() != null) team.setDescription(dto.getDescription());
         if (dto.getLogoUrl() != null) team.setLogoUrl(dto.getLogoUrl());
 
-        return teamRepository.save(team);
+        Team updatedTeam = teamRepository.save(team);
+
+        // Publicar evento de equipo actualizado
+        eventPublisher.publishEvent(new TeamUpdatedEvent(this,
+            updatedTeam.getId(),
+            updatedTeam.getName(),
+            requesterEmail));
+
+        return updatedTeam;
     }
 
     public void deleteTeam(Long teamId, String requesterEmail) throws Exception {
         Team team = getTeam(teamId);
         if (!team.getOwner().getEmail().equals(requesterEmail)) throw new Exception("No autorizado.");
+
+        String teamName = team.getName();
         teamRepository.delete(team);
+
+        // Publicar evento de equipo eliminado
+        eventPublisher.publishEvent(new TeamDeletedEvent(this, teamId, teamName, requesterEmail));
     }
 
     public JoinRequest createJoinRequest(Long teamId, String requesterEmail) throws Exception {
@@ -101,7 +127,16 @@ public class TeamService {
         jr.setUser(user);
         jr.setStatus(AppConstants.JOIN_REQUEST_PENDING);
 
-        return joinRequestRepository.save(jr);
+        JoinRequest savedRequest = joinRequestRepository.save(jr);
+
+        // Publicar evento de solicitud creada
+        eventPublisher.publishEvent(new JoinRequestCreatedEvent(this,
+            savedRequest.getId(),
+            team.getId(),
+            team.getName(),
+            user.getEmail()));
+
+        return savedRequest;
     }
 
     @Transactional(readOnly = true)
@@ -129,10 +164,30 @@ public class TeamService {
             team.setMembers(members);
             jr.setStatus(AppConstants.JOIN_REQUEST_ACCEPTED);
             teamRepository.save(team);
-            return joinRequestRepository.save(jr);
+            JoinRequest savedRequest = joinRequestRepository.save(jr);
+
+            // Publicar evento de solicitud aceptada
+            eventPublisher.publishEvent(new JoinRequestAcceptedEvent(this,
+                savedRequest.getId(),
+                team.getId(),
+                team.getName(),
+                user.getEmail(),
+                requesterEmail));
+
+            return savedRequest;
         } else if ("reject".equalsIgnoreCase(action)) {
             jr.setStatus(AppConstants.JOIN_REQUEST_REJECTED);
-            return joinRequestRepository.save(jr);
+            JoinRequest savedRequest = joinRequestRepository.save(jr);
+
+            // Publicar evento de solicitud rechazada
+            eventPublisher.publishEvent(new JoinRequestRejectedEvent(this,
+                savedRequest.getId(),
+                team.getId(),
+                team.getName(),
+                jr.getUser().getEmail(),
+                requesterEmail));
+
+            return savedRequest;
         } else {
             throw new Exception("Acción inválida.");
         }
@@ -149,6 +204,12 @@ public class TeamService {
         if (members == null || !members.removeIf(u -> u.getId().equals(user.getId()))) throw new Exception("No eres miembro del equipo.");
         team.setMembers(members);
         teamRepository.save(team);
+
+        // Publicar evento de usuario abandonó equipo
+        eventPublisher.publishEvent(new UserLeftTeamEvent(this,
+            team.getId(),
+            team.getName(),
+            user.getEmail()));
     }
 
     public void removeMember(Long teamId, Long userId, String requesterEmail) throws Exception {
@@ -158,8 +219,10 @@ public class TeamService {
 
         Set<User> members = team.getMembers();
         boolean removed = members != null && members.removeIf(u -> u.getId().equals(userId));
-        if (!removed) throw new Exception("Usuario no es miembro.");
+        if (!removed) throw new Exception("El usuario no es miembro del equipo.");
+
         team.setMembers(members);
         teamRepository.save(team);
     }
 }
+

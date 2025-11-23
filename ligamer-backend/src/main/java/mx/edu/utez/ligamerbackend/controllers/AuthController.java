@@ -1,5 +1,6 @@
 package mx.edu.utez.ligamerbackend.controllers;
 
+import jakarta.validation.Valid;
 import mx.edu.utez.ligamerbackend.dtos.*;
 import mx.edu.utez.ligamerbackend.services.JwtService;
 import mx.edu.utez.ligamerbackend.services.UserService;
@@ -11,10 +12,13 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.validation.BindingResult;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/auth")
@@ -30,10 +34,18 @@ public class AuthController {
     private JwtService jwtService;
 
     @PostMapping("/register")
-    public ResponseEntity<?> registerUser(@RequestBody UserDto userDto) {
+    public ResponseEntity<?> registerUser(@Valid @RequestBody UserDto userDto, BindingResult bindingResult) {
         try {
+            // Validar errores de validación
+            if (bindingResult.hasErrors()) {
+                String errors = bindingResult.getAllErrors().stream()
+                        .map(error -> error.getDefaultMessage())
+                        .collect(Collectors.joining(", "));
+                return new ResponseEntity<>(errors, HttpStatus.BAD_REQUEST);
+            }
+
             userService.registerNewUser(userDto);
-            return new ResponseEntity<>("¡Usuario registrado exitosamente!", HttpStatus.CREATED);
+            return new ResponseEntity<>("¡Bienvenido! Tu cuenta ha sido creada exitosamente.", HttpStatus.CREATED);
         } catch (Exception e) {
             return new ResponseEntity<>(e.getMessage(), HttpStatus.BAD_REQUEST);
         }

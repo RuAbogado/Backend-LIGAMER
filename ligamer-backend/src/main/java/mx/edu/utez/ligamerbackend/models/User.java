@@ -23,6 +23,15 @@ public class User implements UserDetails {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Column(length = 100, nullable = false)
+    private String nombre;
+
+    @Column(name = "apellido_paterno", length = 100, nullable = false)
+    private String apellidoPaterno;
+
+    @Column(name = "apellido_materno", length = 100)
+    private String apellidoMaterno;
+
     @Column(length = 150, nullable = false, unique = true)
     private String email;
 

@@ -1,14 +1,15 @@
 package mx.edu.utez.ligamerbackend.services;
 
+import mx.edu.utez.ligamerbackend.dtos.UpdateProfileDto;
 import mx.edu.utez.ligamerbackend.dtos.UserDto;
+import mx.edu.utez.ligamerbackend.events.*;
 import mx.edu.utez.ligamerbackend.models.Role;
 import mx.edu.utez.ligamerbackend.models.User;
 import mx.edu.utez.ligamerbackend.repositories.RoleRepository;
 import mx.edu.utez.ligamerbackend.repositories.UserRepository;
 import mx.edu.utez.ligamerbackend.utils.AppConstants;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.mail.SimpleMailMessage;
-import org.springframework.mail.javamail.JavaMailSender;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -31,15 +32,24 @@ public class UserService {
     private PasswordEncoder passwordEncoder;
 
     @Autowired
-    private JavaMailSender mailSender;
+    private ApplicationEventPublisher eventPublisher;
 
     @Transactional
     public User registerNewUser(UserDto userDto) throws Exception {
+        // Validar que el correo no esté registrado
         if (userRepository.findByEmail(userDto.getEmail()).isPresent()) {
-            throw new Exception("El correo electrónico ya está registrado.");
+            throw new Exception("Ya hay una cuenta asociada al correo " + userDto.getEmail() + ". Intenta con uno diferente.");
+        }
+
+        // Validar que las contraseñas coincidan
+        if (!userDto.getPassword().equals(userDto.getConfirmPassword())) {
+            throw new Exception("Las contraseñas no coinciden. Por favor, verificarlas.");
         }
 
         User newUser = new User();
+        newUser.setNombre(userDto.getNombre());
+        newUser.setApellidoPaterno(userDto.getApellidoPaterno());
+        newUser.setApellidoMaterno(userDto.getApellidoMaterno());
         newUser.setEmail(userDto.getEmail());
         newUser.setPassword(passwordEncoder.encode(userDto.getPassword()));
         newUser.setActive(true);
@@ -48,7 +58,15 @@ public class UserService {
                 .orElseThrow(() -> new Exception("Rol de Jugador no encontrado."));
         newUser.setRole(userRole);
 
-        return userRepository.save(newUser);
+        User savedUser = userRepository.save(newUser);
+
+        // Publicar evento de registro
+        eventPublisher.publishEvent(new UserRegisteredEvent(this,
+            savedUser.getEmail(),
+            savedUser.getId(),
+            userRole.getName()));
+
+        return savedUser;
     }
 
     public void generatePasswordResetToken(String email) {
@@ -62,16 +80,8 @@ public class UserService {
         user.setResetPasswordTokenExpiry(expiryDate);
         userRepository.save(user);
 
-        sendPasswordResetEmail(user.getEmail(), token);
-    }
-
-    private void sendPasswordResetEmail(String to, String token) {
-        SimpleMailMessage message = new SimpleMailMessage();
-        message.setTo(to);
-        message.setSubject("Restablecimiento de Contraseña - LIGAMER");
-        String url = "http://localhost:3000/reset-password?token=" + token;
-        message.setText("Hola,\n\nHas solicitado restablecer tu contraseña. Haz clic en el siguiente enlace para continuar:\n" + url + "\n\nSi no solicitaste esto, por favor ignora este correo.\n\nEl enlace caducará en 15 minutos.");
-        mailSender.send(message);
+        // Publicar evento de solicitud de recuperación de contraseña
+        eventPublisher.publishEvent(new PasswordResetRequestedEvent(this, user.getEmail(), token));
     }
 
     public void resetPassword(String token, String newPassword) {
@@ -86,7 +96,10 @@ public class UserService {
         user.setResetPasswordToken(null);
         user.setResetPasswordTokenExpiry(null);
 
-        userRepository.save(user);
+        User savedUser = userRepository.save(user);
+
+        // Publicar evento de contraseña restablecida
+        eventPublisher.publishEvent(new PasswordResetCompletedEvent(this, savedUser.getEmail(), savedUser.getId()));
     }
 
     @Transactional(readOnly = true)
@@ -96,25 +109,60 @@ public class UserService {
     }
 
     @Transactional
-    public User updateProfile(String currentEmail, String newEmail, String currentPassword, String newPassword) throws Exception {
+    public User updateProfile(String currentEmail, UpdateProfileDto updateProfileDto) throws Exception {
         User user = userRepository.findByEmail(currentEmail)
                 .orElseThrow(() -> new RuntimeException("Usuario no encontrado."));
 
-        if (newEmail != null && !newEmail.equals(currentEmail)) {
-            if (userRepository.findByEmail(newEmail).isPresent()) {
+        boolean emailChanged = false;
+        boolean passwordChanged = false;
+        boolean profileDataChanged = false;
+
+        // Actualizar nombre y apellidos si se proporcionan
+        if (updateProfileDto.getNombre() != null && !updateProfileDto.getNombre().isEmpty()) {
+            user.setNombre(updateProfileDto.getNombre());
+            profileDataChanged = true;
+        }
+
+        if (updateProfileDto.getApellidoPaterno() != null && !updateProfileDto.getApellidoPaterno().isEmpty()) {
+            user.setApellidoPaterno(updateProfileDto.getApellidoPaterno());
+            profileDataChanged = true;
+        }
+
+        if (updateProfileDto.getApellidoMaterno() != null) {
+            user.setApellidoMaterno(updateProfileDto.getApellidoMaterno());
+            profileDataChanged = true;
+        }
+
+        // Actualizar email si cambió
+        if (updateProfileDto.getEmail() != null && !updateProfileDto.getEmail().equals(currentEmail)) {
+            if (userRepository.findByEmail(updateProfileDto.getEmail()).isPresent()) {
                 throw new Exception("El correo electrónico ya está en uso.");
             }
-            user.setEmail(newEmail);
+            user.setEmail(updateProfileDto.getEmail());
+            emailChanged = true;
         }
 
-        if (newPassword != null && !newPassword.isEmpty()) {
-            if (currentPassword == null || !passwordEncoder.matches(currentPassword, user.getPassword())) {
+        // Actualizar contraseña si se proporciona
+        if (updateProfileDto.getNewPassword() != null && !updateProfileDto.getNewPassword().isEmpty()) {
+            if (updateProfileDto.getCurrentPassword() == null || !passwordEncoder.matches(updateProfileDto.getCurrentPassword(), user.getPassword())) {
                 throw new Exception("La contraseña actual es incorrecta.");
             }
-            user.setPassword(passwordEncoder.encode(newPassword));
+            user.setPassword(passwordEncoder.encode(updateProfileDto.getNewPassword()));
+            passwordChanged = true;
         }
 
-        return userRepository.save(user);
+        User savedUser = userRepository.save(user);
+
+        // Publicar evento de perfil actualizado
+        if (emailChanged || passwordChanged || profileDataChanged) {
+            eventPublisher.publishEvent(new UserProfileUpdatedEvent(this,
+                savedUser.getId(),
+                currentEmail,
+                emailChanged ? updateProfileDto.getEmail() : currentEmail,
+                passwordChanged));
+        }
+
+        return savedUser;
     }
 
     public void changePassword(String email, String currentPassword, String newPassword) throws Exception {
@@ -155,3 +203,4 @@ public class UserService {
         userRepository.save(user);
     }
 }
+
