@@ -45,6 +45,9 @@ public class Match {
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
+    @Column(name = "node_id")
+    private String nodeId;
+
     @PrePersist
     protected void onCreate() {
         this.createdAt = LocalDateTime.now();

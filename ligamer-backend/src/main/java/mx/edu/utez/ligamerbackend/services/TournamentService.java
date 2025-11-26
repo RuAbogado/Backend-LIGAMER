@@ -28,6 +28,9 @@ import mx.edu.utez.ligamerbackend.dtos.PlayerStatDto;
 import mx.edu.utez.ligamerbackend.dtos.RadarResponseDto;
 import mx.edu.utez.ligamerbackend.dtos.PieDataDto;
 import mx.edu.utez.ligamerbackend.dtos.TournamentSeriesDto;
+import mx.edu.utez.ligamerbackend.dtos.TournamentFullDto;
+import mx.edu.utez.ligamerbackend.dtos.TeamSimpleDto;
+import mx.edu.utez.ligamerbackend.dtos.MatchSimpleDto;
 
 @Service
 @Transactional
@@ -65,59 +68,179 @@ public class TournamentService {
         return toDto(saved);
     }
 
+    // --- Nuevo: crear torneo completo a partir de TournamentFullDto ---
+    public TournamentFullDto createFullTournament(TournamentFullDto dto, String creatorEmail) {
+        User creator = userRepository.findByEmail(creatorEmail)
+                .orElseThrow(() -> new RuntimeException("Usuario creador no encontrado"));
+
+        Tournament t = new Tournament();
+        t.setName(dto.getTournamentName());
+        t.setDescription(dto.getDescription());
+        // Guardamos rules como texto si viene ruleList
+        if (dto.getRuleList() != null) {
+            t.setRuleList(dto.getRuleList());
+            t.setRules(String.join("\n", dto.getRuleList()));
+        } else {
+            t.setRules(null);
+        }
+        t.setStartDate(dto.getStartDate());
+        t.setEndDate(dto.getEndDate());
+        t.setNumTeams(dto.getNumTeams());
+        t.setRegistrationCloseDate(dto.getRegistrationCloseDate());
+        t.setMatchDates(dto.getMatchDates());
+        t.setEstado(dto.getEstado());
+        t.setCreatedBy(creator);
+        t.setActive(true);
+
+        // Guardar equipos si vienen (mapear por nombre a entidades existentes o crear
+        // nuevas)
+        if (dto.getTeams() != null) {
+            for (TeamSimpleDto ts : dto.getTeams()) {
+                Team team = teamRepository.findByName(ts.getName()).orElseGet(() -> {
+                    Team newTeam = new Team();
+                    newTeam.setName(ts.getName());
+                    return teamRepository.save(newTeam);
+                });
+                t.getTeams().add(team);
+            }
+        }
+
+        Tournament saved = tournamentRepository.save(t);
+
+        // Guardar partidos si vienen
+        if (dto.getMatches() != null) {
+            for (java.util.Map.Entry<String, MatchSimpleDto> entry : dto.getMatches().entrySet()) {
+                String nodeId = entry.getKey();
+                MatchSimpleDto mDto = entry.getValue();
+
+                Match match = new Match();
+                match.setTournament(saved);
+                match.setNodeId(nodeId);
+
+                // Buscar equipos por nombre
+                Team homeTeam = teamRepository.findByName(mDto.getTeam1())
+                        .orElseThrow(() -> new RuntimeException("Equipo no encontrado: " + mDto.getTeam1()));
+                Team awayTeam = teamRepository.findByName(mDto.getTeam2())
+                        .orElseThrow(() -> new RuntimeException("Equipo no encontrado: " + mDto.getTeam2()));
+
+                match.setHomeTeam(homeTeam);
+                match.setAwayTeam(awayTeam);
+
+                // Parsear scores
+                try {
+                    match.setHomeScore(
+                            mDto.getScore1() != null && !mDto.getScore1().isEmpty() ? Integer.parseInt(mDto.getScore1())
+                                    : 0);
+                    match.setAwayScore(
+                            mDto.getScore2() != null && !mDto.getScore2().isEmpty() ? Integer.parseInt(mDto.getScore2())
+                                    : 0);
+                } catch (NumberFormatException e) {
+                    match.setHomeScore(0);
+                    match.setAwayScore(0);
+                }
+
+                // Parsear fecha
+                if (mDto.getDate() != null && !mDto.getDate().isEmpty()) {
+                    try {
+                        if (mDto.getDate().length() == 10) {
+                            match.setMatchDate(java.time.LocalDate.parse(mDto.getDate()).atStartOfDay());
+                        } else {
+                            match.setMatchDate(java.time.LocalDateTime.parse(mDto.getDate()));
+                        }
+                    } catch (Exception e) {
+                        match.setMatchDate(t.getStartDate().atStartOfDay());
+                    }
+                } else {
+                    match.setMatchDate(t.getStartDate().atStartOfDay());
+                }
+
+                // Status
+                if ((mDto.getScore1() == null || mDto.getScore1().isEmpty()) &&
+                        (mDto.getScore2() == null || mDto.getScore2().isEmpty())) {
+                    match.setStatus("PENDING");
+                } else {
+                    match.setStatus("FINISHED");
+                }
+
+                matchRepository.save(match);
+            }
+        }
+
+        return toFullDto(saved);
+    }
+
+    // Nuevo método público para obtener TournamentFullDto por id
+    public TournamentFullDto getFullTournament(Long tournamentId) {
+        Tournament t = tournamentRepository.findById(tournamentId)
+                .orElseThrow(() -> new RuntimeException("Torneo no encontrado."));
+        return toFullDto(t);
+    }
+
     @Transactional(readOnly = true)
     public TournamentDetailResponseDto getTournament(Long tournamentId) {
         Tournament t = tournamentRepository.findById(tournamentId)
                 .orElseThrow(() -> new RuntimeException("Torneo no encontrado."));
 
+        TournamentFullDto full = toFullDto(t);
+
         TournamentDetailResponseDto dto = new TournamentDetailResponseDto();
-        dto.setId(t.getId());
-        dto.setName(t.getName());
-        dto.setDescription(t.getDescription());
-        dto.setRules(t.getRules());
-        dto.setStartDate(t.getStartDate());
-        dto.setEndDate(t.getEndDate());
-        dto.setActive(t.isActive());
+        dto.setId(full.getId());
+        dto.setName(full.getTournamentName());
+        dto.setDescription(full.getDescription());
+        // Preserve rules as text if available
+        if (full.getRuleList() != null) {
+            dto.setRules(String.join("\n", full.getRuleList()));
+        } else {
+            dto.setRules(null);
+        }
+        dto.setStartDate(full.getStartDate());
+        dto.setEndDate(full.getEndDate());
+        dto.setActive(true);
         dto.setCreatedByEmail(t.getCreatedBy() != null ? t.getCreatedBy().getEmail() : null);
 
-        // Actualmente no hay relación directa entre Tournament y Team en el modelo.
-        // Como aproximación segura devolvemos la lista vacía. Si se modela la relación,
-        // aquí se podrá mapear los equipos inscritos.
-        List<Team> teams = List.of();
-        List<TeamSummaryDto> teamDtos = teams.stream().map(team -> {
-            TeamSummaryDto ts = new TeamSummaryDto();
-            ts.setId(team.getId());
-            ts.setName(team.getName());
-            ts.setOwnerEmail(team.getOwner() != null ? team.getOwner().getEmail() : null);
-            return ts;
-        }).collect(Collectors.toList());
-        dto.setTeams(teamDtos);
+        // Nuevos campos
+        dto.setNumTeams(full.getNumTeams());
+        dto.setRegistrationCloseDate(full.getRegistrationCloseDate());
+        dto.setRuleList(full.getRuleList());
+        dto.setMatchDates(full.getMatchDates());
+        dto.setEstado(full.getEstado());
+        dto.setGeneradoEl(full.getGeneradoEl());
+        dto.setActualizadoEl(full.getActualizadoEl());
+        dto.setTeams(full.getTeams());
+        dto.setMatches(full.getMatches());
 
         return dto;
     }
 
-    public TournamentResponseDto updateTournament(Long tournamentId, TournamentDto dto, String requesterEmail) throws Exception {
+    public TournamentResponseDto updateTournament(Long tournamentId, TournamentDto dto, String requesterEmail)
+            throws Exception {
         // Verificar rol del solicitante
         User requester = userRepository.findByEmail(requesterEmail)
                 .orElseThrow(() -> new RuntimeException("Usuario solicitante no encontrado."));
 
         String roleName = requester.getRole() != null ? requester.getRole().getName() : null;
-        boolean allowed = AppConstants.ROLE_ORGANIZADOR.equals(roleName) || AppConstants.ROLE_ADMINISTRADOR.equals(roleName);
-        if (!allowed) throw new Exception("No autorizado.");
+        boolean allowed = AppConstants.ROLE_ORGANIZADOR.equals(roleName)
+                || AppConstants.ROLE_ADMINISTRADOR.equals(roleName);
+        if (!allowed)
+            throw new Exception("No autorizado.");
 
         Tournament found = tournamentRepository.findById(tournamentId)
                 .orElseThrow(() -> new RuntimeException("Torneo no encontrado."));
 
-        if (dto.getName() != null) found.setName(dto.getName());
-        if (dto.getDescription() != null) found.setDescription(dto.getDescription());
-        if (dto.getRules() != null) found.setRules(dto.getRules());
-        if (dto.getStartDate() != null) found.setStartDate(dto.getStartDate());
-        if (dto.getEndDate() != null) found.setEndDate(dto.getEndDate());
+        if (dto.getName() != null)
+            found.setName(dto.getName());
+        if (dto.getDescription() != null)
+            found.setDescription(dto.getDescription());
+        if (dto.getRules() != null)
+            found.setRules(dto.getRules());
+        if (dto.getStartDate() != null)
+            found.setStartDate(dto.getStartDate());
+        if (dto.getEndDate() != null)
+            found.setEndDate(dto.getEndDate());
 
         Tournament saved = tournamentRepository.save(found);
         return toDto(saved);
     }
-
 
     public void deleteTournament(Long tournamentId) throws Exception {
         Tournament found = tournamentRepository.findById(tournamentId)
@@ -128,6 +251,65 @@ public class TournamentService {
     @Transactional(readOnly = true)
     public List<TournamentResponseDto> listAll() {
         return tournamentRepository.findAll().stream().map(this::toDto).collect(Collectors.toList());
+    }
+
+    public TournamentFullDto toFullDto(Tournament t) {
+        TournamentFullDto dto = new TournamentFullDto();
+        dto.setId(t.getId());
+        dto.setTournamentName(t.getName());
+        dto.setDescription(t.getDescription());
+        dto.setNumTeams(t.getNumTeams());
+        dto.setStartDate(t.getStartDate());
+        dto.setEndDate(t.getEndDate());
+        dto.setRegistrationCloseDate(t.getRegistrationCloseDate());
+        dto.setRuleList(t.getRuleList());
+        dto.setMatchDates(t.getMatchDates());
+        dto.setEstado(t.getEstado());
+        dto.setGeneradoEl(t.getGeneradoEl());
+        dto.setActualizadoEl(t.getActualizadoEl());
+        // Teams
+        java.util.List<TeamSimpleDto> teams = new java.util.ArrayList<>();
+        if (t.getTeams() != null) {
+            for (Team team : t.getTeams()) {
+                TeamSimpleDto ts = new TeamSimpleDto();
+                ts.setName(team.getName());
+                ts.setImage(team.getLogoUrl());
+                teams.add(ts);
+            }
+        }
+        dto.setTeams(teams);
+
+        // Matches: mapear desde matchRepository
+        java.util.Map<String, MatchSimpleDto> matchesMap = new java.util.HashMap<>();
+        java.util.List<Match> matches = matchRepository.findByTournamentOrderByMatchDateAsc(t);
+        int nodeIndex = 0;
+        for (Match m : matches) {
+            MatchSimpleDto ms = new MatchSimpleDto();
+            ms.setTeam1(m.getHomeTeam() != null ? m.getHomeTeam().getName() : null);
+            ms.setTeam2(m.getAwayTeam() != null ? m.getAwayTeam().getName() : null);
+
+            if ("PENDING".equals(m.getStatus())) {
+                ms.setScore1("");
+                ms.setScore2("");
+            } else {
+                ms.setScore1(m.getHomeScore() != null ? String.valueOf(m.getHomeScore()) : "");
+                ms.setScore2(m.getAwayScore() != null ? String.valueOf(m.getAwayScore()) : "");
+            }
+
+            ms.setDate(m.getMatchDate() != null ? m.getMatchDate().toLocalDate().toString() : null);
+
+            String key = m.getNodeId() != null ? m.getNodeId() : "node" + nodeIndex;
+            matchesMap.put(key, ms);
+            nodeIndex++;
+        }
+        dto.setMatches(matchesMap);
+
+        return dto;
+    }
+
+    @Transactional(readOnly = true)
+    public java.util.List<TournamentFullDto> listAllFull() {
+        return tournamentRepository.findAll().stream().map(this::toFullDto).collect(Collectors.toList());
     }
 
     private TournamentResponseDto toDto(Tournament t) {
@@ -148,8 +330,9 @@ public class TournamentService {
         Tournament tournament = tournamentRepository.findById(tournamentId)
                 .orElseThrow(() -> new RuntimeException("Torneo no encontrado."));
 
-        List<Standing> standings = standingRepository.findByTournamentOrderByPointsDescGoalDifferenceDescGoalsForDesc(tournament);
-        
+        List<Standing> standings = standingRepository
+                .findByTournamentOrderByPointsDescGoalDifferenceDescGoalsForDesc(tournament);
+
         List<StandingDto> result = new java.util.ArrayList<>();
         int position = 1;
         for (Standing standing : standings) {
@@ -163,8 +346,7 @@ public class TournamentService {
                     standing.getLost(),
                     standing.getGoalsFor(),
                     standing.getGoalsAgainst(),
-                    standing.getPoints()
-            );
+                    standing.getPoints());
             dto.setPosition(position++);
             result.add(dto);
         }
@@ -177,7 +359,7 @@ public class TournamentService {
                 .orElseThrow(() -> new RuntimeException("Torneo no encontrado."));
 
         List<Match> matches = matchRepository.findByTournamentOrderByMatchDateAsc(tournament);
-        
+
         return matches.stream().map(match -> {
             MatchDto dto = new MatchDto();
             dto.setId(match.getId());
@@ -242,8 +424,8 @@ public class TournamentService {
         // Verificar autorización: dueño del equipo u organizador/admin
         boolean isTeamOwner = team.getOwner().getId().equals(requester.getId());
         String roleName = requester.getRole() != null ? requester.getRole().getName() : null;
-        boolean isOrganizerOrAdmin = AppConstants.ROLE_ORGANIZADOR.equals(roleName) || 
-                                     AppConstants.ROLE_ADMINISTRADOR.equals(roleName);
+        boolean isOrganizerOrAdmin = AppConstants.ROLE_ORGANIZADOR.equals(roleName) ||
+                AppConstants.ROLE_ADMINISTRADOR.equals(roleName);
 
         if (!isTeamOwner && !isOrganizerOrAdmin) {
             throw new RuntimeException("No estás autorizado para retirar este equipo del torneo.");
@@ -255,14 +437,15 @@ public class TournamentService {
         tournamentRepository.save(tournament);
     }
 
-    public MatchDto registerMatchResult(Long matchId, MatchResultDto resultDto, String requesterEmail) throws Exception {
+    public MatchDto registerMatchResult(Long matchId, MatchResultDto resultDto, String requesterEmail)
+            throws Exception {
         // Verificar que el usuario es organizador o admin
         User requester = userRepository.findByEmail(requesterEmail)
                 .orElseThrow(() -> new RuntimeException("Usuario no encontrado."));
 
         String roleName = requester.getRole() != null ? requester.getRole().getName() : null;
-        boolean isOrganizerOrAdmin = AppConstants.ROLE_ORGANIZADOR.equals(roleName) || 
-                                     AppConstants.ROLE_ADMINISTRADOR.equals(roleName);
+        boolean isOrganizerOrAdmin = AppConstants.ROLE_ORGANIZADOR.equals(roleName) ||
+                AppConstants.ROLE_ADMINISTRADOR.equals(roleName);
 
         if (!isOrganizerOrAdmin) {
             throw new RuntimeException("No estás autorizado. Solo organizadores pueden registrar resultados.");
@@ -286,7 +469,7 @@ public class TournamentService {
             // Actualizar scores
             match.setHomeScore(resultDto.getHomeScore());
             match.setAwayScore(resultDto.getAwayScore());
-            
+
             // Establecer status
             if (resultDto.getStatus() != null) {
                 match.setStatus(resultDto.getStatus());
@@ -313,8 +496,8 @@ public class TournamentService {
                 .orElseThrow(() -> new RuntimeException("Usuario no encontrado."));
 
         String roleName = requester.getRole() != null ? requester.getRole().getName() : null;
-        boolean isOrganizerOrAdmin = AppConstants.ROLE_ORGANIZADOR.equals(roleName) || 
-                                     AppConstants.ROLE_ADMINISTRADOR.equals(roleName);
+        boolean isOrganizerOrAdmin = AppConstants.ROLE_ORGANIZADOR.equals(roleName) ||
+                AppConstants.ROLE_ADMINISTRADOR.equals(roleName);
 
         if (!isOrganizerOrAdmin) {
             throw new RuntimeException("No estás autorizado. Solo organizadores pueden actualizar resultados.");
@@ -335,7 +518,8 @@ public class TournamentService {
 
         // Verificar que el partido tiene resultado previo
         if ("PENDING".equals(match.getStatus())) {
-            throw new RuntimeException("El partido no tiene un resultado registrado aún. Use el endpoint POST para registrar.");
+            throw new RuntimeException(
+                    "El partido no tiene un resultado registrado aún. Use el endpoint POST para registrar.");
         }
 
         // Guardar scores anteriores para revertir estadísticas si es necesario
@@ -472,7 +656,8 @@ public class TournamentService {
         Integer totalLosses = standingRepository.sumAllLost();
         totalWins = totalWins != null ? totalWins : 0;
         totalLosses = totalLosses != null ? totalLosses : 0;
-        System.out.println("[TournamentService] getPieStats - totals computed: wins=" + totalWins + ", losses=" + totalLosses);
+        System.out.println(
+                "[TournamentService] getPieStats - totals computed: wins=" + totalWins + ", losses=" + totalLosses);
         java.util.List<mx.edu.utez.ligamerbackend.dtos.PieDataDto> res = new java.util.ArrayList<>();
         mx.edu.utez.ligamerbackend.dtos.PieDataDto losses = new mx.edu.utez.ligamerbackend.dtos.PieDataDto();
         losses.setId(1L);
@@ -492,7 +677,8 @@ public class TournamentService {
 
     @Transactional(readOnly = true)
     public mx.edu.utez.ligamerbackend.dtos.RadarResponseDto getRadarStats(Long teamId, Long tournamentId) {
-        // Si se proporciona tournamentId, usamos standings de ese torneo; si no, usamos standings del equipo (por torneo último) o global
+        // Si se proporciona tournamentId, usamos standings de ese torneo; si no, usamos
+        // standings del equipo (por torneo último) o global
         java.util.List<Standing> standings;
         if (tournamentId != null) {
             Tournament t = tournamentRepository.findById(tournamentId)
@@ -511,8 +697,10 @@ public class TournamentService {
             standings = standingRepository.findAll();
         }
 
-        // Mapear por jugador: en el modelo actual Standing es por equipo, no por jugador.
-        // Para aproximar al formato que pidió Tomy (estadísticas por jugador), usaremos los miembros de los equipos
+        // Mapear por jugador: en el modelo actual Standing es por equipo, no por
+        // jugador.
+        // Para aproximar al formato que pidió Tomy (estadísticas por jugador), usaremos
+        // los miembros de los equipos
         java.util.Map<Long, mx.edu.utez.ligamerbackend.dtos.PlayerStatDto> playerMap = new java.util.HashMap<>();
         int totalWins = 0;
         int totalLosses = 0;
@@ -551,7 +739,8 @@ public class TournamentService {
 
     @Transactional(readOnly = true)
     public java.util.List<mx.edu.utez.ligamerbackend.dtos.TournamentSeriesDto> getTournamentSeries(Long teamId) {
-        // Retornamos una lista de torneos con encuentros, ganados y perdidos del equipo si teamId provisto,
+        // Retornamos una lista de torneos con encuentros, ganados y perdidos del equipo
+        // si teamId provisto,
         // si no se provee, devolvemos un resumen global por torneo
         java.util.List<Tournament> tournaments = tournamentRepository.findAll();
         java.util.List<mx.edu.utez.ligamerbackend.dtos.TournamentSeriesDto> res = new java.util.ArrayList<>();
@@ -567,13 +756,23 @@ public class TournamentService {
                     encuentros++;
                     if (teamId != null) {
                         if (m.getHomeTeam() != null && m.getHomeTeam().getId().equals(teamId)) {
-                            if (m.getHomeScore() > m.getAwayScore()) ganados++; else if (m.getHomeScore() < m.getAwayScore()) perdidos++;
+                            if (m.getHomeScore() > m.getAwayScore())
+                                ganados++;
+                            else if (m.getHomeScore() < m.getAwayScore())
+                                perdidos++;
                         } else if (m.getAwayTeam() != null && m.getAwayTeam().getId().equals(teamId)) {
-                            if (m.getAwayScore() > m.getHomeScore()) ganados++; else if (m.getAwayScore() < m.getHomeScore()) perdidos++;
+                            if (m.getAwayScore() > m.getHomeScore())
+                                ganados++;
+                            else if (m.getAwayScore() < m.getHomeScore())
+                                perdidos++;
                         }
                     } else {
-                        // global: sumamos victorias del local como "ganados" y visitante como "perdidos" solo como indicador
-                        if (m.getHomeScore() > m.getAwayScore()) ganados++; else if (m.getHomeScore() < m.getAwayScore()) perdidos++;
+                        // global: sumamos victorias del local como "ganados" y visitante como
+                        // "perdidos" solo como indicador
+                        if (m.getHomeScore() > m.getAwayScore())
+                            ganados++;
+                        else if (m.getHomeScore() < m.getAwayScore())
+                            perdidos++;
                     }
                 }
             }
@@ -589,4 +788,3 @@ public class TournamentService {
         return res;
     }
 }
-

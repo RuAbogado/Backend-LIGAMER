@@ -1,6 +1,7 @@
 package mx.edu.utez.ligamerbackend.controllers;
 
 import mx.edu.utez.ligamerbackend.dtos.TournamentDto;
+import mx.edu.utez.ligamerbackend.dtos.TournamentFullDto;
 import mx.edu.utez.ligamerbackend.dtos.TournamentResponseDto;
 import mx.edu.utez.ligamerbackend.services.TournamentService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -17,6 +18,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/tournaments")
@@ -38,11 +40,11 @@ public class TournamentController {
 
     @PostMapping
     @PreAuthorize("hasAnyAuthority('ROLE_ORGANIZADOR', 'ROLE_ADMINISTRADOR')")
-    public ResponseEntity<ApiResponseDto<TournamentResponseDto>> create(@RequestBody TournamentDto dto) {
+    public ResponseEntity<ApiResponseDto<TournamentFullDto>> create(@RequestBody TournamentFullDto dto) {
         try {
             Authentication auth = SecurityContextHolder.getContext().getAuthentication();
             String email = auth.getName();
-            TournamentResponseDto created = tournamentService.createTournament(dto, email);
+            TournamentFullDto created = tournamentService.createFullTournament(dto, email);
             return ResponseEntity.status(HttpStatus.CREATED)
                     .body(ApiResponseDto.success("Torneo creado exitosamente", created));
         } catch (RuntimeException e) {
@@ -55,9 +57,9 @@ public class TournamentController {
     }
 
     @GetMapping
-    public ResponseEntity<ApiResponseDto<List<TournamentResponseDto>>> listAll() {
+    public ResponseEntity<ApiResponseDto<List<TournamentFullDto>>> listAll() {
         try {
-            List<TournamentResponseDto> tournaments = tournamentService.listAll();
+            List<TournamentFullDto> tournaments = tournamentService.listAllFull();
             return ResponseEntity.ok(ApiResponseDto.success("Torneos obtenidos exitosamente", tournaments));
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
@@ -66,9 +68,9 @@ public class TournamentController {
     }
 
     @GetMapping("/{tournamentId}")
-    public ResponseEntity<ApiResponseDto<TournamentDetailResponseDto>> getTournament(@PathVariable Long tournamentId) {
+    public ResponseEntity<ApiResponseDto<TournamentFullDto>> getTournament(@PathVariable Long tournamentId) {
         try {
-            TournamentDetailResponseDto tournament = tournamentService.getTournament(tournamentId);
+            TournamentFullDto tournament = tournamentService.getFullTournament(tournamentId);
             return ResponseEntity.ok(ApiResponseDto.success("Detalle del torneo obtenido", tournament));
         } catch (RuntimeException e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
@@ -81,7 +83,8 @@ public class TournamentController {
 
     @PutMapping("/{tournamentId}")
     @PreAuthorize("hasAnyAuthority('ROLE_ORGANIZADOR', 'ROLE_ADMINISTRADOR')")
-    public ResponseEntity<ApiResponseDto<TournamentResponseDto>> update(@PathVariable Long tournamentId, @RequestBody TournamentDto dto) {
+    public ResponseEntity<ApiResponseDto<TournamentResponseDto>> update(@PathVariable Long tournamentId,
+            @RequestBody TournamentDto dto) {
         try {
             Authentication auth = SecurityContextHolder.getContext().getAuthentication();
             String email = auth.getName();
@@ -210,7 +213,7 @@ public class TournamentController {
         System.out.println("🔑 Authentication: " + auth);
         System.out.println("👤 Principal: " + (auth != null ? auth.getName() : "NULL"));
         System.out.println("🛡️ Authorities: " + (auth != null ? auth.getAuthorities() : "NULL"));
-        
+
         try {
             String email = auth.getName();
             MatchDto match = tournamentService.registerMatchResult(matchId, resultDto, email);
@@ -246,7 +249,7 @@ public class TournamentController {
         System.out.println("🔑 Authentication: " + auth);
         System.out.println("👤 Principal: " + (auth != null ? auth.getName() : "NULL"));
         System.out.println("🛡️ Authorities: " + (auth != null ? auth.getAuthorities() : "NULL"));
-        
+
         try {
             String email = auth.getName();
             MatchDto match = tournamentService.updateMatchResult(matchId, resultDto, email);
@@ -255,7 +258,8 @@ public class TournamentController {
             if (e.getMessage().contains("no encontrado")) {
                 return ResponseEntity.status(HttpStatus.NOT_FOUND)
                         .body(ApiResponseDto.notFound(e.getMessage()));
-            } else if (e.getMessage().contains("no tiene un resultado") || e.getMessage().contains("Use el endpoint POST")) {
+            } else if (e.getMessage().contains("no tiene un resultado")
+                    || e.getMessage().contains("Use el endpoint POST")) {
                 return ResponseEntity.status(HttpStatus.CONFLICT)
                         .body(ApiResponseDto.conflict(e.getMessage()));
             } else if (e.getMessage().contains("autorizado")) {
@@ -271,4 +275,3 @@ public class TournamentController {
         }
     }
 }
-

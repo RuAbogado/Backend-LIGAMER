@@ -4,9 +4,13 @@ import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import mx.edu.utez.ligamerbackend.utils.JsonConverters;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 @Entity
@@ -33,6 +37,26 @@ public class Tournament {
 
     private LocalDate endDate;
 
+    // --- Nuevos campos ---
+    private Integer numTeams;
+
+    private LocalDate registrationCloseDate;
+
+    @Convert(converter = JsonConverters.StringListConverter.class)
+    @Column(columnDefinition = "TEXT")
+    private List<String> ruleList;
+
+    @Convert(converter = JsonConverters.StringMapConverter.class)
+    @Column(columnDefinition = "TEXT")
+    private Map<String, String> matchDates;
+
+    @Column(length = 50)
+    private String estado;
+
+    private LocalDateTime generadoEl;
+
+    private LocalDateTime actualizadoEl;
+
     @Column(columnDefinition = "BOOL DEFAULT TRUE")
     private boolean active = true;
 
@@ -47,4 +71,20 @@ public class Tournament {
             inverseJoinColumns = @JoinColumn(name = "team_id")
     )
     private Set<Team> teams = new HashSet<>();
+
+    @PrePersist
+    protected void onCreate() {
+        // Inicializar timestamps y estado
+        if (this.generadoEl == null) {
+            this.generadoEl = java.time.LocalDateTime.now();
+        }
+        if (this.estado == null) {
+            this.estado = "Guardado";
+        }
+    }
+
+    @PreUpdate
+    protected void onUpdate() {
+        this.actualizadoEl = java.time.LocalDateTime.now();
+    }
 }

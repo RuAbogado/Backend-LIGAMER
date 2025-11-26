@@ -4,6 +4,7 @@ import mx.edu.utez.ligamerbackend.dtos.PieDataDto;
 import mx.edu.utez.ligamerbackend.dtos.RadarResponseDto;
 import mx.edu.utez.ligamerbackend.dtos.TournamentSeriesDto;
 import mx.edu.utez.ligamerbackend.dtos.ApiResponseDto;
+import mx.edu.utez.ligamerbackend.dtos.StatsRequestDto;
 import mx.edu.utez.ligamerbackend.services.TournamentService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
@@ -23,7 +24,8 @@ public class StatsController {
         System.out.println("[StatsController] GET /api/stats/pie - entrada");
         try {
             List<PieDataDto> data = tournamentService.getPieStats();
-            System.out.println("[StatsController] GET /api/stats/pie - datos obtenidos, size=" + (data != null ? data.size() : 0));
+            System.out.println(
+                    "[StatsController] GET /api/stats/pie - datos obtenidos, size=" + (data != null ? data.size() : 0));
             return ResponseEntity.ok(ApiResponseDto.success("Datos pie obtenidos", data));
         } catch (Exception e) {
             System.out.println("[StatsController] GET /api/stats/pie - excepción: " + e.getMessage());
@@ -31,12 +33,11 @@ public class StatsController {
         }
     }
 
-    @GetMapping("/radar")
-    public ResponseEntity<ApiResponseDto<RadarResponseDto>> getRadar(@RequestParam(required = false) Long teamId,
-                                                                      @RequestParam(required = false) Long tournamentId) {
+    @PostMapping("/radar")
+    public ResponseEntity<ApiResponseDto<RadarResponseDto>> getRadar(@RequestBody StatsRequestDto dto) {
         try {
-            RadarResponseDto dto = tournamentService.getRadarStats(teamId, tournamentId);
-            return ResponseEntity.ok(ApiResponseDto.success("Datos radar obtenidos", dto));
+            RadarResponseDto response = tournamentService.getRadarStats(dto.getTeamId(), dto.getTournamentId());
+            return ResponseEntity.ok(ApiResponseDto.success("Datos radar obtenidos", response));
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body(ApiResponseDto.badRequest(e.getMessage()));
         } catch (Exception e) {
@@ -44,10 +45,10 @@ public class StatsController {
         }
     }
 
-    @GetMapping("/series")
-    public ResponseEntity<ApiResponseDto<List<TournamentSeriesDto>>> getSeries(@RequestParam(required = false) Long teamId) {
+    @PostMapping("/series")
+    public ResponseEntity<ApiResponseDto<List<TournamentSeriesDto>>> getSeries(@RequestBody StatsRequestDto dto) {
         try {
-            List<TournamentSeriesDto> list = tournamentService.getTournamentSeries(teamId);
+            List<TournamentSeriesDto> list = tournamentService.getTournamentSeries(dto.getTeamId());
             return ResponseEntity.ok(ApiResponseDto.success("Series obtenidas", list));
         } catch (Exception e) {
             return ResponseEntity.internalServerError().body(ApiResponseDto.error("Error: " + e.getMessage()));
