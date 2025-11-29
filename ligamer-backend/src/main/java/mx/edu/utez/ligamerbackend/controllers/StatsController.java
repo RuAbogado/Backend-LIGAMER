@@ -19,16 +19,17 @@ public class StatsController {
     @Autowired
     private TournamentService tournamentService;
 
-    @GetMapping("/pie")
-    public ResponseEntity<ApiResponseDto<List<PieDataDto>>> getPie() {
-        System.out.println("[StatsController] GET /api/stats/pie - entrada");
+    @PostMapping("/pie")
+    public ResponseEntity<ApiResponseDto<List<PieDataDto>>> getPie(@RequestBody StatsRequestDto dto) {
+        System.out.println("[StatsController] POST /api/stats/pie - entrada");
         try {
-            List<PieDataDto> data = tournamentService.getPieStats();
+            List<PieDataDto> data = tournamentService.getPieStats(dto.getTeamId());
             System.out.println(
-                    "[StatsController] GET /api/stats/pie - datos obtenidos, size=" + (data != null ? data.size() : 0));
+                    "[StatsController] POST /api/stats/pie - datos obtenidos, size="
+                            + (data != null ? data.size() : 0));
             return ResponseEntity.ok(ApiResponseDto.success("Datos pie obtenidos", data));
         } catch (Exception e) {
-            System.out.println("[StatsController] GET /api/stats/pie - excepción: " + e.getMessage());
+            System.out.println("[StatsController] POST /api/stats/pie - excepción: " + e.getMessage());
             return ResponseEntity.internalServerError().body(ApiResponseDto.error("Error: " + e.getMessage()));
         }
     }

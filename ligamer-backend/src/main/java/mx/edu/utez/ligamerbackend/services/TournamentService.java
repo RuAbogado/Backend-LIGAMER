@@ -169,6 +169,107 @@ public class TournamentService {
         return toFullDto(saved);
     }
 
+    public TournamentFullDto createFromCreateDto(mx.edu.utez.ligamerbackend.dtos.TournamentCreateDto dto,
+            String creatorEmail) {
+        User creator = userRepository.findByEmail(creatorEmail)
+                .orElseThrow(() -> new RuntimeException("Usuario creador no encontrado"));
+
+        Tournament t = new Tournament();
+        t.setName(dto.getTournamentName());
+        t.setDescription(dto.getDescription());
+        // Guardamos rules como texto si viene ruleList
+        if (dto.getRuleList() != null) {
+            t.setRuleList(dto.getRuleList());
+            t.setRules(String.join("\n", dto.getRuleList()));
+        } else {
+            t.setRules(null);
+        }
+        t.setStartDate(dto.getStartDate());
+        t.setEndDate(dto.getEndDate());
+        t.setNumTeams(dto.getNumTeams());
+        t.setRegistrationCloseDate(dto.getRegistrationCloseDate());
+        t.setMatchDates(dto.getMatchDates());
+        t.setEstado(dto.getEstado());
+        t.setCreatedBy(creator);
+        t.setActive(true);
+
+        // Guardar equipos si vienen (mapear por nombre a entidades existentes o crear
+        // nuevas)
+        if (dto.getTeams() != null) {
+            for (TeamSimpleDto ts : dto.getTeams()) {
+                Team team = teamRepository.findByName(ts.getName()).orElseGet(() -> {
+                    Team newTeam = new Team();
+                    newTeam.setName(ts.getName());
+                    return teamRepository.save(newTeam);
+                });
+                t.getTeams().add(team);
+            }
+        }
+
+        Tournament saved = tournamentRepository.save(t);
+
+        // Guardar partidos si vienen
+        if (dto.getMatches() != null) {
+            for (java.util.Map.Entry<String, MatchSimpleDto> entry : dto.getMatches().entrySet()) {
+                String nodeId = entry.getKey();
+                MatchSimpleDto mDto = entry.getValue();
+
+                Match match = new Match();
+                match.setTournament(saved);
+                match.setNodeId(nodeId);
+
+                // Buscar equipos por nombre
+                Team homeTeam = teamRepository.findByName(mDto.getTeam1())
+                        .orElseThrow(() -> new RuntimeException("Equipo no encontrado: " + mDto.getTeam1()));
+                Team awayTeam = teamRepository.findByName(mDto.getTeam2())
+                        .orElseThrow(() -> new RuntimeException("Equipo no encontrado: " + mDto.getTeam2()));
+
+                match.setHomeTeam(homeTeam);
+                match.setAwayTeam(awayTeam);
+
+                // Parsear scores
+                try {
+                    match.setHomeScore(
+                            mDto.getScore1() != null && !mDto.getScore1().isEmpty() ? Integer.parseInt(mDto.getScore1())
+                                    : 0);
+                    match.setAwayScore(
+                            mDto.getScore2() != null && !mDto.getScore2().isEmpty() ? Integer.parseInt(mDto.getScore2())
+                                    : 0);
+                } catch (NumberFormatException e) {
+                    match.setHomeScore(0);
+                    match.setAwayScore(0);
+                }
+
+                // Parsear fecha
+                if (mDto.getDate() != null && !mDto.getDate().isEmpty()) {
+                    try {
+                        if (mDto.getDate().length() == 10) {
+                            match.setMatchDate(java.time.LocalDate.parse(mDto.getDate()).atStartOfDay());
+                        } else {
+                            match.setMatchDate(java.time.LocalDateTime.parse(mDto.getDate()));
+                        }
+                    } catch (Exception e) {
+                        match.setMatchDate(t.getStartDate().atStartOfDay());
+                    }
+                } else {
+                    match.setMatchDate(t.getStartDate().atStartOfDay());
+                }
+
+                // Status
+                if ((mDto.getScore1() == null || mDto.getScore1().isEmpty()) &&
+                        (mDto.getScore2() == null || mDto.getScore2().isEmpty())) {
+                    match.setStatus("PENDING");
+                } else {
+                    match.setStatus("FINISHED");
+                }
+
+                matchRepository.save(match);
+            }
+        }
+
+        return toFullDto(saved);
+    }
+
     // Nuevo método público para obtener TournamentFullDto por id
     public TournamentFullDto getFullTournament(Long tournamentId) {
         Tournament t = tournamentRepository.findById(tournamentId)
@@ -649,13 +750,22 @@ public class TournamentService {
     // --- Estadísticas para gráficas ---
 
     @Transactional(readOnly = true)
-    public java.util.List<mx.edu.utez.ligamerbackend.dtos.PieDataDto> getPieStats() {
-        System.out.println("[TournamentService] getPieStats - entrada");
-        // Usamos consultas agregadas para evitar cargar todos los standings
-        Integer totalWins = standingRepository.sumAllWon();
-        Integer totalLosses = standingRepository.sumAllLost();
+    public java.util.List<mx.edu.utez.ligamerbackend.dtos.PieDataDto> getPieStats(Long teamId) {
+        System.out.println("[TournamentService] getPieStats - entrada. TeamId: " + teamId);
+        Integer totalWins;
+        Integer totalLosses;
+
+        if (teamId != null) {
+            totalWins = standingRepository.sumWonByTeamId(teamId);
+            totalLosses = standingRepository.sumLostByTeamId(teamId);
+        } else {
+            totalWins = standingRepository.sumAllWon();
+            totalLosses = standingRepository.sumAllLost();
+        }
+
         totalWins = totalWins != null ? totalWins : 0;
         totalLosses = totalLosses != null ? totalLosses : 0;
+
         System.out.println(
                 "[TournamentService] getPieStats - totals computed: wins=" + totalWins + ", losses=" + totalLosses);
         java.util.List<mx.edu.utez.ligamerbackend.dtos.PieDataDto> res = new java.util.ArrayList<>();

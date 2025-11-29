@@ -34,12 +34,16 @@ public class AdminController {
     @GetMapping
     public ResponseEntity<?> listUsers() {
         try {
-            if (!isAdmin()) return ResponseEntity.status(403).body("No autorizado");
+            if (!isAdmin())
+                return ResponseEntity.status(403).body("No autorizado");
             List<User> users = userService.listAllUsers();
             List<Map<String, Object>> resp = users.stream().map(u -> {
                 Map<String, Object> m = new HashMap<>();
                 m.put("id", u.getId());
                 m.put("email", u.getEmail());
+                m.put("nombre", u.getNombre());
+                m.put("apellidoPaterno", u.getApellidoPaterno());
+                m.put("apellidoMaterno", u.getApellidoMaterno());
                 m.put("active", u.isActive());
                 m.put("role", u.getRole() != null ? u.getRole().getName() : null);
                 return m;
@@ -53,7 +57,8 @@ public class AdminController {
     @GetMapping("/{userId}")
     public ResponseEntity<?> getUser(@PathVariable Long userId) {
         try {
-            if (!isAdmin()) return ResponseEntity.status(403).body("No autorizado");
+            if (!isAdmin())
+                return ResponseEntity.status(403).body("No autorizado");
             User user = userService.getUserById(userId);
             Map<String, Object> m = new HashMap<>();
             m.put("id", user.getId());
@@ -69,7 +74,8 @@ public class AdminController {
     @PutMapping("/{userId}")
     public ResponseEntity<?> updateUser(@PathVariable Long userId, @Valid @RequestBody AdminUpdateUserDto dto) {
         try {
-            if (!isAdmin()) return ResponseEntity.status(403).body("No autorizado");
+            if (!isAdmin())
+                return ResponseEntity.status(403).body("No autorizado");
             User updated = userService.updateUserActive(userId, dto.getActive());
             Map<String, Object> m = new HashMap<>();
             m.put("id", updated.getId());
@@ -83,7 +89,8 @@ public class AdminController {
     @PutMapping("/{userId}/assign-organizer")
     public ResponseEntity<?> assignOrganizer(@PathVariable Long userId, @Valid @RequestBody AssignOrganizerDto dto) {
         try {
-            if (!isAdmin()) return ResponseEntity.status(403).body("No autorizado");
+            if (!isAdmin())
+                return ResponseEntity.status(403).body("No autorizado");
             userService.assignOrganizerRole(userId, dto.getAssign());
             Map<String, Object> m = new HashMap<>();
             m.put("userId", userId);

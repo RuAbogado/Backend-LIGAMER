@@ -40,11 +40,12 @@ public class TournamentController {
 
     @PostMapping
     @PreAuthorize("hasAnyAuthority('ROLE_ORGANIZADOR', 'ROLE_ADMINISTRADOR')")
-    public ResponseEntity<ApiResponseDto<TournamentFullDto>> create(@RequestBody TournamentFullDto dto) {
+    public ResponseEntity<ApiResponseDto<TournamentFullDto>> create(
+            @RequestBody mx.edu.utez.ligamerbackend.dtos.TournamentCreateDto dto) {
         try {
             Authentication auth = SecurityContextHolder.getContext().getAuthentication();
             String email = auth.getName();
-            TournamentFullDto created = tournamentService.createFullTournament(dto, email);
+            TournamentFullDto created = tournamentService.createFromCreateDto(dto, email);
             return ResponseEntity.status(HttpStatus.CREATED)
                     .body(ApiResponseDto.success("Torneo creado exitosamente", created));
         } catch (RuntimeException e) {
