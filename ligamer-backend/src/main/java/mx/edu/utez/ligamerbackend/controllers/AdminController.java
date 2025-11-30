@@ -22,6 +22,9 @@ import java.util.stream.Collectors;
 public class AdminController {
 
     @Autowired
+    private mx.edu.utez.ligamerbackend.repositories.TeamRepository teamRepository;
+
+    @Autowired
     private UserService userService;
 
     private boolean isAdmin() {
@@ -36,7 +39,19 @@ public class AdminController {
         try {
             if (!isAdmin())
                 return ResponseEntity.status(403).body("No autorizado");
+
             List<User> users = userService.listAllUsers();
+            List<mx.edu.utez.ligamerbackend.models.Team> allTeams = teamRepository.findAll();
+            Map<Long, mx.edu.utez.ligamerbackend.models.Team> userTeamMap = new HashMap<>();
+
+            for (mx.edu.utez.ligamerbackend.models.Team t : allTeams) {
+                if (t.getMembers() != null) {
+                    for (User u : t.getMembers()) {
+                        userTeamMap.put(u.getId(), t);
+                    }
+                }
+            }
+
             List<Map<String, Object>> resp = users.stream().map(u -> {
                 Map<String, Object> m = new HashMap<>();
                 m.put("id", u.getId());
@@ -46,6 +61,16 @@ public class AdminController {
                 m.put("apellidoMaterno", u.getApellidoMaterno());
                 m.put("active", u.isActive());
                 m.put("role", u.getRole() != null ? u.getRole().getName() : null);
+
+                mx.edu.utez.ligamerbackend.models.Team t = userTeamMap.get(u.getId());
+                if (t != null) {
+                    m.put("teamName", t.getName());
+                    m.put("teamMemberCount", t.getMembers() != null ? t.getMembers().size() : 0);
+                } else {
+                    m.put("teamName", null);
+                    m.put("teamMemberCount", 0);
+                }
+
                 return m;
             }).collect(Collectors.toList());
             return ResponseEntity.ok(resp);

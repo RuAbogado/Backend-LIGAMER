@@ -68,6 +68,18 @@ public class TournamentController {
         }
     }
 
+    @GetMapping("/summary")
+    public ResponseEntity<ApiResponseDto<List<mx.edu.utez.ligamerbackend.dtos.TournamentSummaryDto>>> listSummary() {
+        try {
+            List<mx.edu.utez.ligamerbackend.dtos.TournamentSummaryDto> summaries = tournamentService
+                    .getTournamentSummaries();
+            return ResponseEntity.ok(ApiResponseDto.success("Resumen de torneos obtenido", summaries));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponseDto.error("Error al obtener el resumen: " + e.getMessage()));
+        }
+    }
+
     @GetMapping("/{tournamentId}")
     public ResponseEntity<ApiResponseDto<TournamentFullDto>> getTournament(@PathVariable Long tournamentId) {
         try {

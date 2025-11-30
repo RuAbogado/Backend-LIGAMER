@@ -413,6 +413,21 @@ public class TournamentService {
         return tournamentRepository.findAll().stream().map(this::toFullDto).collect(Collectors.toList());
     }
 
+    @Transactional(readOnly = true)
+    public List<mx.edu.utez.ligamerbackend.dtos.TournamentSummaryDto> getTournamentSummaries() {
+        return tournamentRepository.findAll().stream().map(t -> {
+            mx.edu.utez.ligamerbackend.dtos.TournamentSummaryDto dto = new mx.edu.utez.ligamerbackend.dtos.TournamentSummaryDto();
+            dto.setId(t.getId());
+            dto.setName(t.getName());
+            dto.setDescription(t.getDescription());
+            dto.setStartDate(t.getStartDate());
+            dto.setEndDate(t.getEndDate());
+            dto.setEstado(t.getEstado());
+            dto.setTeamCount(t.getTeams() != null ? t.getTeams().size() : 0);
+            return dto;
+        }).collect(Collectors.toList());
+    }
+
     private TournamentResponseDto toDto(Tournament t) {
         TournamentResponseDto r = new TournamentResponseDto();
         r.setId(t.getId());
