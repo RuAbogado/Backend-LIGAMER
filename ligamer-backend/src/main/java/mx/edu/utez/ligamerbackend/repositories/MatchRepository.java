@@ -3,7 +3,11 @@ package mx.edu.utez.ligamerbackend.repositories;
 import mx.edu.utez.ligamerbackend.models.Match;
 import mx.edu.utez.ligamerbackend.models.Tournament;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
@@ -11,4 +15,9 @@ import java.util.List;
 public interface MatchRepository extends JpaRepository<Match, Long> {
     List<Match> findByTournamentOrderByMatchDateAsc(Tournament tournament);
     List<Match> findByTournamentAndStatus(Tournament tournament, String status);
+    
+    @Modifying
+    @Transactional
+    @Query("DELETE FROM Match m WHERE m.tournament = :tournament")
+    void deleteByTournament(@Param("tournament") Tournament tournament);
 }
