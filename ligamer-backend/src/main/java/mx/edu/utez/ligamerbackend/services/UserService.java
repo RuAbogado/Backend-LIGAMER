@@ -2,9 +2,12 @@ package mx.edu.utez.ligamerbackend.services;
 
 import mx.edu.utez.ligamerbackend.dtos.UpdateProfileDto;
 import mx.edu.utez.ligamerbackend.dtos.UserDto;
+import mx.edu.utez.ligamerbackend.dtos.UserProfileDto;
+import mx.edu.utez.ligamerbackend.dtos.TeamInfoDto;
 import mx.edu.utez.ligamerbackend.events.*;
 import mx.edu.utez.ligamerbackend.models.Role;
 import mx.edu.utez.ligamerbackend.models.User;
+import mx.edu.utez.ligamerbackend.models.Team;
 import mx.edu.utez.ligamerbackend.repositories.RoleRepository;
 import mx.edu.utez.ligamerbackend.repositories.UserRepository;
 import mx.edu.utez.ligamerbackend.utils.AppConstants;
@@ -201,6 +204,79 @@ public class UserService {
         Role role = roleRepository.findByName(targetRoleName).orElseThrow(() -> new Exception("Rol no encontrado: " + targetRoleName));
         user.setRole(role);
         userRepository.save(user);
+    }
+
+    @Transactional(readOnly = true)
+    public UserProfileDto getUserProfileWithTeam(String email) {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("Usuario no encontrado con el email: " + email));
+        return buildUserProfileDto(user);
+    }
+
+    @Transactional(readOnly = true)
+    public UserProfileDto getUserProfileById(Long id) {
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Usuario no encontrado con el ID: " + id));
+        return buildUserProfileDto(user);
+    }
+
+    @Transactional(readOnly = true)
+    public List<UserProfileDto> getAllUsersWithTeams() {
+        return userRepository.findAll().stream()
+                .map(this::buildUserProfileDto)
+                .toList();
+    }
+
+    private UserProfileDto buildUserProfileDto(User user) {
+        System.out.println("🔍 DEBUG buildUserProfileDto para usuario: " + user.getEmail());
+        System.out.println("📋 Nombre: " + user.getNombre());
+        System.out.println("📋 ApellidoPaterno: " + user.getApellidoPaterno());
+        System.out.println("📋 ApellidoMaterno: " + user.getApellidoMaterno());
+        
+        UserProfileDto dto = new UserProfileDto();
+        dto.setId(user.getId());
+        dto.setNombre(user.getNombre());
+        dto.setApellidoPaterno(user.getApellidoPaterno());
+        dto.setApellidoMaterno(user.getApellidoMaterno());
+        dto.setEmail(user.getEmail());
+        dto.setActive(user.isActive());
+        dto.setRole(user.getRole().getName());
+        
+        // Buscar el equipo del que es miembro
+        try {
+            Team memberTeam = findTeamByMember(user);
+            System.out.println("🏆 Equipo como miembro: " + (memberTeam != null ? memberTeam.getName() : "NULL"));
+            if (memberTeam != null) {
+                dto.setTeam(new TeamInfoDto(memberTeam.getId(), memberTeam.getName(), 
+                        memberTeam.getDescription(), memberTeam.getLogoUrl()));
+            }
+        } catch (Exception e) {
+            System.out.println("❌ Error buscando equipo como miembro: " + e.getMessage());
+        }
+        
+        // Buscar el equipo del que es propietario
+        try {
+            Team ownedTeam = findTeamByOwner(user);
+            System.out.println("👑 Equipo como propietario: " + (ownedTeam != null ? ownedTeam.getName() : "NULL"));
+            if (ownedTeam != null) {
+                dto.setOwnedTeam(new TeamInfoDto(ownedTeam.getId(), ownedTeam.getName(), 
+                        ownedTeam.getDescription(), ownedTeam.getLogoUrl()));
+            }
+        } catch (Exception e) {
+            System.out.println("❌ Error buscando equipo como propietario: " + e.getMessage());
+        }
+        
+        return dto;
+    }
+
+    private Team findTeamByMember(User user) {
+        // Buscar en todos los equipos si el usuario es miembro
+        return userRepository.findTeamByMemberId(user.getId());
+    }
+
+    private Team findTeamByOwner(User user) {
+        // Buscar el equipo del que es propietario
+        return userRepository.findTeamByOwnerId(user.getId());
     }
 }
 

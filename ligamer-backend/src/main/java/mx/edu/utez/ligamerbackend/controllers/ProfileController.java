@@ -2,16 +2,19 @@ package mx.edu.utez.ligamerbackend.controllers;
 
 import mx.edu.utez.ligamerbackend.dtos.ChangePasswordDto;
 import mx.edu.utez.ligamerbackend.dtos.UpdateProfileDto;
+import mx.edu.utez.ligamerbackend.dtos.UserProfileDto;
+import mx.edu.utez.ligamerbackend.dtos.ApiResponseDto;
 import mx.edu.utez.ligamerbackend.models.User;
 import mx.edu.utez.ligamerbackend.services.UserService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.HttpStatus;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.HashMap;
-import java.util.Map;
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/profile")
@@ -21,69 +24,72 @@ public class ProfileController {
     private UserService userService;
 
     @GetMapping
-    public ResponseEntity<?> getProfile() {
+    public ResponseEntity<ApiResponseDto<UserProfileDto>> getProfile() {
         try {
-            // Obtener el usuario autenticado del contexto de seguridad
             Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
             String email = authentication.getName();
 
-            // Buscar el usuario en la base de datos
-            User user = userService.findByEmail(email);
+            UserProfileDto profile = userService.getUserProfileWithTeam(email);
 
-            // Preparar la respuesta con la información del perfil
-            Map<String, Object> profile = new HashMap<>();
-            profile.put("id", user.getId());
-            profile.put("nombre", user.getNombre());
-            profile.put("apellidoPaterno", user.getApellidoPaterno());
-            profile.put("apellidoMaterno", user.getApellidoMaterno());
-            profile.put("email", user.getEmail());
-            profile.put("active", user.isActive());
-            profile.put("role", user.getRole().getName());
-
-            return ResponseEntity.ok(profile);
+            return ResponseEntity.ok(ApiResponseDto.success("Perfil obtenido exitosamente", profile));
         } catch (Exception e) {
-            return ResponseEntity.badRequest().body("Error al obtener el perfil: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(ApiResponseDto.badRequest("Error al obtener el perfil: " + e.getMessage()));
         }
     }
 
     @PutMapping
-    public ResponseEntity<?> updateProfile(@RequestBody UpdateProfileDto updateProfileDto) {
+    public ResponseEntity<ApiResponseDto<UserProfileDto>> updateProfile(@RequestBody UpdateProfileDto updateProfileDto) {
         try {
-            // Obtener el usuario autenticado del contexto de seguridad
             Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
             String currentEmail = authentication.getName();
 
-            // Actualizar el perfil del usuario
             User updatedUser = userService.updateProfile(currentEmail, updateProfileDto);
+            UserProfileDto profile = userService.getUserProfileWithTeam(updatedUser.getEmail());
 
-            // Preparar la respuesta con la información actualizada
-            Map<String, Object> response = new HashMap<>();
-            response.put("message", "Tus datos se han actualizado correctamente.");
-            response.put("user", Map.of(
-                    "id", updatedUser.getId(),
-                    "nombre", updatedUser.getNombre(),
-                    "apellidoPaterno", updatedUser.getApellidoPaterno(),
-                    "apellidoMaterno", updatedUser.getApellidoMaterno() != null ? updatedUser.getApellidoMaterno() : "",
-                    "email", updatedUser.getEmail(),
-                    "active", updatedUser.isActive(),
-                    "role", updatedUser.getRole().getName()
-            ));
-
-            return ResponseEntity.ok(response);
+            return ResponseEntity.ok(ApiResponseDto.success("Perfil actualizado exitosamente", profile));
         } catch (Exception e) {
-            return ResponseEntity.badRequest().body("Error al actualizar el perfil: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(ApiResponseDto.badRequest("Error al actualizar el perfil: " + e.getMessage()));
+        }
+    }
+
+    // Nuevo endpoint para que organizadores y administradores puedan ver perfil de cualquier usuario por ID
+    @GetMapping("/user/{id}")
+    @PreAuthorize("hasAnyAuthority('ROLE_ORGANIZADOR', 'ROLE_ADMINISTRADOR')")
+    public ResponseEntity<ApiResponseDto<UserProfileDto>> getUserById(@PathVariable Long id) {
+        try {
+            UserProfileDto profile = userService.getUserProfileById(id);
+            return ResponseEntity.ok(ApiResponseDto.success("Usuario obtenido exitosamente", profile));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(ApiResponseDto.notFound("Error al obtener el usuario: " + e.getMessage()));
+        }
+    }
+
+    // Nuevo endpoint para que organizadores y administradores puedan listar todos los usuarios
+    @GetMapping("/users")
+    @PreAuthorize("hasAnyAuthority('ROLE_ORGANIZADOR', 'ROLE_ADMINISTRADOR')")
+    public ResponseEntity<ApiResponseDto<List<UserProfileDto>>> getAllUsers() {
+        try {
+            List<UserProfileDto> users = userService.getAllUsersWithTeams();
+            return ResponseEntity.ok(ApiResponseDto.success("Usuarios obtenidos exitosamente", users));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponseDto.error("Error al obtener los usuarios: " + e.getMessage()));
         }
     }
 
     @PutMapping("/change-password")
-    public ResponseEntity<?> changePassword(@RequestBody ChangePasswordDto changePasswordDto) {
+    public ResponseEntity<ApiResponseDto<String>> changePassword(@RequestBody ChangePasswordDto changePasswordDto) {
         try {
             Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
             String email = authentication.getName();
             userService.changePassword(email, changePasswordDto.getCurrentPassword(), changePasswordDto.getNewPassword());
-            return ResponseEntity.ok("Contraseña actualizada exitosamente");
+            return ResponseEntity.ok(ApiResponseDto.success("Contraseña actualizada exitosamente", "OK"));
         } catch (Exception e) {
-            return ResponseEntity.badRequest().body("Error al cambiar la contraseña: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(ApiResponseDto.badRequest("Error al cambiar la contraseña: " + e.getMessage()));
         }
     }
 }
