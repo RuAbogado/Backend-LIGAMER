@@ -842,8 +842,17 @@ public class TournamentService {
                     if (p == null) {
                         p = new PlayerStatDto();
                         p.setId(member.getId());
-                        // User model uses 'nombre' as first name field
-                        String displayName = (member.getNombre() != null ? member.getNombre() : member.getEmail());
+                        // Construir nombre completo
+                        String fullName = member.getNombre();
+                        if (fullName != null && member.getApellidoPaterno() != null) {
+                            fullName += " " + member.getApellidoPaterno();
+                        }
+                        if (fullName != null && member.getApellidoMaterno() != null) {
+                            fullName += " " + member.getApellidoMaterno();
+                        }
+
+                        String displayName = (fullName != null && !fullName.trim().isEmpty()) ? fullName
+                                : member.getEmail();
                         p.setNombre(displayName);
                         p.setVictorias(0);
                         p.setDerrotas(0);
