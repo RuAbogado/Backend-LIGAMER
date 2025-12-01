@@ -96,12 +96,12 @@ public class TournamentController {
 
     @PutMapping("/{tournamentId}")
     @PreAuthorize("hasAnyAuthority('ROLE_ORGANIZADOR', 'ROLE_ADMINISTRADOR')")
-    public ResponseEntity<ApiResponseDto<TournamentResponseDto>> update(@PathVariable Long tournamentId,
-            @RequestBody TournamentDto dto) {
+    public ResponseEntity<ApiResponseDto<TournamentFullDto>> update(@PathVariable Long tournamentId,
+            @RequestBody TournamentFullDto dto) {
         try {
             Authentication auth = SecurityContextHolder.getContext().getAuthentication();
             String email = auth.getName();
-            TournamentResponseDto updated = tournamentService.updateTournament(tournamentId, dto, email);
+            TournamentFullDto updated = tournamentService.updateTournament(tournamentId, dto, email);
             return ResponseEntity.ok(ApiResponseDto.success("Torneo actualizado exitosamente", updated));
         } catch (RuntimeException e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
