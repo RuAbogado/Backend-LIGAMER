@@ -36,7 +36,7 @@ build/
 .idea/
 
 # Ignorar archivos de configuración con secretos
-src/main/resources/application.properties
+src/main/resources/application.example.properties
 
 
 # Carpetas de respaldo

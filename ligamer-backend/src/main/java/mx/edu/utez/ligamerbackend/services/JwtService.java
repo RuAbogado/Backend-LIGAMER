@@ -21,7 +21,12 @@ public class JwtService {
     private static final String SECRET_KEY = "kX8Q7A19rXRaYAHj8uVkbULMt4dQqfNy";
 
     public String generateToken(UserDetails userDetails) {
-        return generateToken(new HashMap<>(), userDetails);
+        Map<String, Object> claims = new HashMap<>();
+        // Agregar authorities (roles) al JWT
+        claims.put("authorities", userDetails.getAuthorities().stream()
+                .map(auth -> auth.getAuthority())
+                .toList());
+        return generateToken(claims, userDetails);
     }
 
     public String generateToken(Map<String, Object> extraClaims, UserDetails userDetails) {

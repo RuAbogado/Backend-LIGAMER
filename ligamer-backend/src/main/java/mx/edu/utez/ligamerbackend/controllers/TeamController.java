@@ -43,11 +43,20 @@ public class TeamController {
 
     @GetMapping
     public ResponseEntity<?> listTeams() {
+        System.out.println("🏆 ENTRANDO a listTeams");
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        System.out.println("🔑 Authentication: " + authentication);
+        System.out.println("👤 Principal: " + (authentication != null ? authentication.getName() : "NULL"));
+        System.out.println("🛡️ Authorities: " + (authentication != null ? authentication.getAuthorities() : "NULL"));
+        
         List<Team> teams = teamService.listTeams();
-        List<Map<String, Object>> response = teams.stream().map(t -> {
-            Map<String, Object> owner = new HashMap<>();
-            owner.put("id", t.getOwner().getId());
-            owner.put("email", t.getOwner().getEmail());
+        System.out.println("📋 Equipos encontrados: " + teams.size());
+        List<Map<String, Object>> response = teams.stream()
+                .filter(t -> t.getOwner() != null) // Filtrar equipos sin propietario
+                .map(t -> {
+                    Map<String, Object> owner = new HashMap<>();
+                    owner.put("id", t.getOwner().getId());
+                    owner.put("email", t.getOwner().getEmail());
             Map<String, Object> m = new HashMap<>();
             m.put("id", t.getId());
             m.put("name", t.getName());
@@ -142,6 +151,12 @@ public class TeamController {
                 Map<String, Object> userMap = new HashMap<>();
                 userMap.put("id", j.getUser().getId());
                 userMap.put("email", j.getUser().getEmail());
+                userMap.put("nombre", j.getUser().getNombre());
+                userMap.put("apellidoPaterno", j.getUser().getApellidoPaterno());
+                userMap.put("apellidoMaterno", j.getUser().getApellidoMaterno());
+                userMap.put("active", j.getUser().isActive());
+                userMap.put("role", j.getUser().getRole().getName());
+                
                 Map<String, Object> m = new HashMap<>();
                 m.put("id", j.getId());
                 m.put("user", userMap);
@@ -157,15 +172,22 @@ public class TeamController {
 
     @PutMapping("/{teamId}/join-requests/{requestId}")
     public ResponseEntity<?> manageJoinRequest(@PathVariable Long teamId, @PathVariable Long requestId, @RequestBody ActionDto actionDto) {
+        System.out.println("🔧 ENTRANDO a manageJoinRequest");
+        System.out.println("🆔 TeamId: " + teamId + ", RequestId: " + requestId);
+        System.out.println("⚡ Action: " + (actionDto != null ? actionDto.getAction() : "NULL"));
+        
         try {
             Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
             String email = authentication.getName();
+            System.out.println("👤 Email del usuario: " + email);
+            
             JoinRequest jr = teamService.manageJoinRequest(teamId, requestId, actionDto.getAction(), email);
             Map<String, Object> resp = new HashMap<>();
             resp.put("id", jr.getId());
             resp.put("status", jr.getStatus());
             return ResponseEntity.ok(resp);
         } catch (Exception e) {
+            System.out.println("❌ Error: " + e.getMessage());
             return ResponseEntity.badRequest().body(e.getMessage());
         }
     }
