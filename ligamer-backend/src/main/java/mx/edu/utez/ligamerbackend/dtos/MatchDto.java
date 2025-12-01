@@ -17,4 +17,5 @@ public class MatchDto {
     private Integer awayScore;
     private LocalDateTime matchDate;
     private String status; // PENDING, IN_PROGRESS, FINISHED, CANCELLED
+    private String tournamentName;
 }

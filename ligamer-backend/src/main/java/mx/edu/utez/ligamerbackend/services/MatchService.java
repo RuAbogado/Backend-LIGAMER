@@ -85,8 +85,8 @@ public class MatchService {
     private MatchDto toDto(Match match) {
         MatchDto dto = new MatchDto();
         dto.setId(match.getId());
-        dto.setHomeTeam(match.getHomeTeam().getName());
-        dto.setAwayTeam(match.getAwayTeam().getName());
+        dto.setHomeTeamName(match.getHomeTeam().getName());
+        dto.setAwayTeamName(match.getAwayTeam().getName());
         dto.setHomeTeamId(match.getHomeTeam().getId());
         dto.setAwayTeamId(match.getAwayTeam().getId());
         dto.setHomeScore(match.getHomeScore());
