@@ -9,6 +9,7 @@ public class UpdateProfileDto {
     private String nombre;
     private String apellidoPaterno;
     private String apellidoMaterno;
+    private String username;
     private String email;
     private String currentPassword;
     private String newPassword;

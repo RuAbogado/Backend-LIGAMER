@@ -41,7 +41,8 @@ public class UserService {
     public User registerNewUser(UserDto userDto) throws Exception {
         // Validar que el correo no esté registrado
         if (userRepository.findByEmail(userDto.getEmail()).isPresent()) {
-            throw new Exception("Ya hay una cuenta asociada al correo " + userDto.getEmail() + ". Intenta con uno diferente.");
+            throw new Exception(
+                    "Ya hay una cuenta asociada al correo " + userDto.getEmail() + ". Intenta con uno diferente.");
         }
 
         // Validar que las contraseñas coincidan
@@ -54,6 +55,7 @@ public class UserService {
         newUser.setApellidoPaterno(userDto.getApellidoPaterno());
         newUser.setApellidoMaterno(userDto.getApellidoMaterno());
         newUser.setEmail(userDto.getEmail());
+        newUser.setUsername(userDto.getUsername());
         newUser.setPassword(passwordEncoder.encode(userDto.getPassword()));
         newUser.setActive(true);
 
@@ -65,9 +67,9 @@ public class UserService {
 
         // Publicar evento de registro
         eventPublisher.publishEvent(new UserRegisteredEvent(this,
-            savedUser.getEmail(),
-            savedUser.getId(),
-            userRole.getName()));
+                savedUser.getEmail(),
+                savedUser.getId(),
+                userRole.getName()));
 
         return savedUser;
     }
@@ -136,6 +138,11 @@ public class UserService {
             profileDataChanged = true;
         }
 
+        if (updateProfileDto.getUsername() != null && !updateProfileDto.getUsername().isEmpty()) {
+            user.setUsername(updateProfileDto.getUsername());
+            profileDataChanged = true;
+        }
+
         // Actualizar email si cambió
         if (updateProfileDto.getEmail() != null && !updateProfileDto.getEmail().equals(currentEmail)) {
             if (userRepository.findByEmail(updateProfileDto.getEmail()).isPresent()) {
@@ -147,7 +154,8 @@ public class UserService {
 
         // Actualizar contraseña si se proporciona
         if (updateProfileDto.getNewPassword() != null && !updateProfileDto.getNewPassword().isEmpty()) {
-            if (updateProfileDto.getCurrentPassword() == null || !passwordEncoder.matches(updateProfileDto.getCurrentPassword(), user.getPassword())) {
+            if (updateProfileDto.getCurrentPassword() == null
+                    || !passwordEncoder.matches(updateProfileDto.getCurrentPassword(), user.getPassword())) {
                 throw new Exception("La contraseña actual es incorrecta.");
             }
             user.setPassword(passwordEncoder.encode(updateProfileDto.getNewPassword()));
@@ -159,10 +167,10 @@ public class UserService {
         // Publicar evento de perfil actualizado
         if (emailChanged || passwordChanged || profileDataChanged) {
             eventPublisher.publishEvent(new UserProfileUpdatedEvent(this,
-                savedUser.getId(),
-                currentEmail,
-                emailChanged ? updateProfileDto.getEmail() : currentEmail,
-                passwordChanged));
+                    savedUser.getId(),
+                    currentEmail,
+                    emailChanged ? updateProfileDto.getEmail() : currentEmail,
+                    passwordChanged));
         }
 
         return savedUser;
@@ -193,7 +201,8 @@ public class UserService {
     @Transactional
     public User updateUserActive(Long id, Boolean active) {
         User user = userRepository.findById(id).orElseThrow(() -> new RuntimeException("Usuario no encontrado."));
-        if (active != null) user.setActive(active);
+        if (active != null)
+            user.setActive(active);
         return userRepository.save(user);
     }
 
@@ -201,7 +210,8 @@ public class UserService {
     public void assignOrganizerRole(Long userId, boolean assign) throws Exception {
         User user = userRepository.findById(userId).orElseThrow(() -> new RuntimeException("Usuario no encontrado."));
         String targetRoleName = assign ? AppConstants.ROLE_ORGANIZADOR : AppConstants.ROLE_JUGADOR;
-        Role role = roleRepository.findByName(targetRoleName).orElseThrow(() -> new Exception("Rol no encontrado: " + targetRoleName));
+        Role role = roleRepository.findByName(targetRoleName)
+                .orElseThrow(() -> new Exception("Rol no encontrado: " + targetRoleName));
         user.setRole(role);
         userRepository.save(user);
     }
@@ -232,40 +242,41 @@ public class UserService {
         System.out.println("📋 Nombre: " + user.getNombre());
         System.out.println("📋 ApellidoPaterno: " + user.getApellidoPaterno());
         System.out.println("📋 ApellidoMaterno: " + user.getApellidoMaterno());
-        
+
         UserProfileDto dto = new UserProfileDto();
         dto.setId(user.getId());
         dto.setNombre(user.getNombre());
         dto.setApellidoPaterno(user.getApellidoPaterno());
         dto.setApellidoMaterno(user.getApellidoMaterno());
+        dto.setUsername(user.getUsername());
         dto.setEmail(user.getEmail());
         dto.setActive(user.isActive());
         dto.setRole(user.getRole().getName());
-        
+
         // Buscar el equipo del que es miembro
         try {
             Team memberTeam = findTeamByMember(user);
             System.out.println("🏆 Equipo como miembro: " + (memberTeam != null ? memberTeam.getName() : "NULL"));
             if (memberTeam != null) {
-                dto.setTeam(new TeamInfoDto(memberTeam.getId(), memberTeam.getName(), 
+                dto.setTeam(new TeamInfoDto(memberTeam.getId(), memberTeam.getName(),
                         memberTeam.getDescription(), memberTeam.getLogoUrl()));
             }
         } catch (Exception e) {
             System.out.println("❌ Error buscando equipo como miembro: " + e.getMessage());
         }
-        
+
         // Buscar el equipo del que es propietario
         try {
             Team ownedTeam = findTeamByOwner(user);
             System.out.println("👑 Equipo como propietario: " + (ownedTeam != null ? ownedTeam.getName() : "NULL"));
             if (ownedTeam != null) {
-                dto.setOwnedTeam(new TeamInfoDto(ownedTeam.getId(), ownedTeam.getName(), 
+                dto.setOwnedTeam(new TeamInfoDto(ownedTeam.getId(), ownedTeam.getName(),
                         ownedTeam.getDescription(), ownedTeam.getLogoUrl()));
             }
         } catch (Exception e) {
             System.out.println("❌ Error buscando equipo como propietario: " + e.getMessage());
         }
-        
+
         return dto;
     }
 
@@ -279,4 +290,3 @@ public class UserService {
         return userRepository.findTeamByOwnerId(user.getId());
     }
 }
-

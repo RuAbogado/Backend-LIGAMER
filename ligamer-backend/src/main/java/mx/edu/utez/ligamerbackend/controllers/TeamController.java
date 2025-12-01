@@ -26,6 +26,9 @@ public class TeamController {
     @Autowired
     private UserService userService;
 
+    @Autowired
+    private mx.edu.utez.ligamerbackend.repositories.StandingRepository standingRepository;
+
     @PostMapping
     public ResponseEntity<?> createTeam(@RequestBody TeamDto teamDto) {
         try {
@@ -105,13 +108,24 @@ public class TeamController {
     public ResponseEntity<?> getTeamMembers(@PathVariable Long teamId) {
         try {
             Team team = teamService.getTeam(teamId);
+
+            // Calcular estadísticas del equipo
+            Integer wins = standingRepository.sumWonByTeamId(teamId);
+            Integer losses = standingRepository.sumLostByTeamId(teamId);
+            int teamWins = wins != null ? wins : 0;
+            int teamLosses = losses != null ? losses : 0;
+
             List<Map<String, Object>> members = team.getMembers().stream().map(u -> {
                 Map<String, Object> mu = new HashMap<>();
                 mu.put("id", u.getId());
                 mu.put("email", u.getEmail());
+                mu.put("username", u.getUsername());
                 mu.put("nombre", u.getNombre());
                 mu.put("apellidoPaterno", u.getApellidoPaterno());
                 mu.put("apellidoMaterno", u.getApellidoMaterno());
+                // Agregar estadísticas del equipo a cada miembro
+                mu.put("victorias", teamWins);
+                mu.put("derrotas", teamLosses);
                 return mu;
             }).collect(Collectors.toList());
             return ResponseEntity.ok(members);
@@ -172,6 +186,7 @@ public class TeamController {
                 Map<String, Object> userMap = new HashMap<>();
                 userMap.put("id", j.getUser().getId());
                 userMap.put("email", j.getUser().getEmail());
+                userMap.put("username", j.getUser().getUsername());
                 userMap.put("nombre", j.getUser().getNombre());
                 userMap.put("apellidoPaterno", j.getUser().getApellidoPaterno());
                 userMap.put("apellidoMaterno", j.getUser().getApellidoMaterno());

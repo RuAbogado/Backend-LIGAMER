@@ -12,6 +12,7 @@ public class UserProfileDto {
     private String nombre;
     private String apellidoPaterno;
     private String apellidoMaterno;
+    private String username;
     private String email;
     private boolean active;
     private String role;

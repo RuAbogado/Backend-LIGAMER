@@ -32,6 +32,9 @@ public class User implements UserDetails {
     @Column(name = "apellido_materno", length = 100)
     private String apellidoMaterno;
 
+    @Column(length = 50, unique = true)
+    private String username;
+
     @Column(length = 150, nullable = false, unique = true)
     private String email;
 
@@ -51,10 +54,10 @@ public class User implements UserDetails {
     @Column(name = "reset_password_token_expiry")
     private LocalDateTime resetPasswordTokenExpiry;
 
-
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
-        System.out.println("🔍 DEBUG getAuthorities() - Email: " + this.email + ", Role: " + (this.role != null ? this.role.getName() : "NULL"));
+        System.out.println("🔍 DEBUG getAuthorities() - Email: " + this.email + ", Role: "
+                + (this.role != null ? this.role.getName() : "NULL"));
         if (this.role == null || this.role.getName() == null) {
             System.out.println("⚠️ Role is NULL for user: " + this.email);
             return Collections.emptyList();
