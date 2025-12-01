@@ -85,6 +85,7 @@ public class TeamController {
             owner.put("id", team.getOwner().getId());
             owner.put("email", team.getOwner().getEmail());
             resp.put("owner", owner);
+            resp.put("memberCount", team.getMembers() != null ? team.getMembers().size() : 0);
             if (isMember) {
                 List<Map<String, Object>> members = team.getMembers().stream().map(u -> {
                     Map<String, Object> mu = new HashMap<>();

@@ -34,11 +34,16 @@ public class AdminController {
         return requester.getRole() != null && AppConstants.ROLE_ADMINISTRADOR.equals(requester.getRole().getName());
     }
 
+    @Autowired
+    private mx.edu.utez.ligamerbackend.repositories.StandingRepository standingRepository;
+
     @GetMapping
     public ResponseEntity<?> listUsers() {
         try {
-            /*if (!isAdmin())
-                return ResponseEntity.status(403).body("No autorizado");*/
+            /*
+             * if (!isAdmin())
+             * return ResponseEntity.status(403).body("No autorizado");
+             */
 
             List<User> users = userService.listAllUsers();
             List<mx.edu.utez.ligamerbackend.models.Team> allTeams = teamRepository.findAll();
@@ -49,6 +54,20 @@ public class AdminController {
                     for (User u : t.getMembers()) {
                         userTeamMap.put(u.getId(), t);
                     }
+                }
+            }
+
+            // Pre-fetch all standings to avoid N+1
+            List<mx.edu.utez.ligamerbackend.models.Standing> allStandings = standingRepository.findAll();
+            Map<Long, int[]> teamStatsMap = new HashMap<>(); // TeamId -> [wins, losses]
+
+            for (mx.edu.utez.ligamerbackend.models.Standing s : allStandings) {
+                if (s.getTeam() != null) {
+                    long tid = s.getTeam().getId();
+                    int[] stats = teamStatsMap.getOrDefault(tid, new int[] { 0, 0 });
+                    stats[0] += (s.getWon() != null ? s.getWon() : 0);
+                    stats[1] += (s.getLost() != null ? s.getLost() : 0);
+                    teamStatsMap.put(tid, stats);
                 }
             }
 
@@ -66,9 +85,15 @@ public class AdminController {
                 if (t != null) {
                     m.put("teamName", t.getName());
                     m.put("teamMemberCount", t.getMembers() != null ? t.getMembers().size() : 0);
+
+                    int[] stats = teamStatsMap.getOrDefault(t.getId(), new int[] { 0, 0 });
+                    m.put("victorias", stats[0]);
+                    m.put("derrotas", stats[1]);
                 } else {
                     m.put("teamName", null);
                     m.put("teamMemberCount", 0);
+                    m.put("victorias", 0);
+                    m.put("derrotas", 0);
                 }
 
                 return m;
