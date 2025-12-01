@@ -107,14 +107,44 @@ public class AdminController {
     @GetMapping("/{userId}")
     public ResponseEntity<?> getUser(@PathVariable Long userId) {
         try {
-            if (!isAdmin())
-                return ResponseEntity.status(403).body("No autorizado");
+            // Permitir acceso a cualquier usuario autenticado
+            // if (!isAdmin()) return ResponseEntity.status(403).body("No autorizado");
             User user = userService.getUserById(userId);
             Map<String, Object> m = new HashMap<>();
             m.put("id", user.getId());
             m.put("email", user.getEmail());
+            m.put("nombre", user.getNombre());
+            m.put("apellidoPaterno", user.getApellidoPaterno());
+            m.put("apellidoMaterno", user.getApellidoMaterno());
             m.put("active", user.isActive());
             m.put("role", user.getRole() != null ? user.getRole().getName() : null);
+
+            // Buscar equipo del usuario
+            List<mx.edu.utez.ligamerbackend.models.Team> allTeams = teamRepository.findAll();
+            mx.edu.utez.ligamerbackend.models.Team userTeam = null;
+            for (mx.edu.utez.ligamerbackend.models.Team t : allTeams) {
+                if (t.getMembers() != null && t.getMembers().stream().anyMatch(u -> u.getId().equals(userId))) {
+                    userTeam = t;
+                    break;
+                }
+            }
+
+            if (userTeam != null) {
+                m.put("teamName", userTeam.getName());
+                m.put("teamMemberCount", userTeam.getMembers() != null ? userTeam.getMembers().size() : 0);
+
+                Integer wins = standingRepository.sumWonByTeamId(userTeam.getId());
+                Integer losses = standingRepository.sumLostByTeamId(userTeam.getId());
+
+                m.put("victorias", wins != null ? wins : 0);
+                m.put("derrotas", losses != null ? losses : 0);
+            } else {
+                m.put("teamName", null);
+                m.put("teamMemberCount", 0);
+                m.put("victorias", 0);
+                m.put("derrotas", 0);
+            }
+
             return ResponseEntity.ok(m);
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(e.getMessage());
