@@ -80,6 +80,21 @@ public class TournamentController {
         }
     }
 
+    @GetMapping("/my-tournaments")
+    @PreAuthorize("hasAnyAuthority('ROLE_ORGANIZADOR', 'ROLE_ADMINISTRADOR')")
+    public ResponseEntity<ApiResponseDto<List<mx.edu.utez.ligamerbackend.dtos.TournamentSummaryDto>>> listMyTournaments() {
+        try {
+            Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+            String email = auth.getName();
+            List<mx.edu.utez.ligamerbackend.dtos.TournamentSummaryDto> myTournaments = tournamentService
+                    .getMyTournaments(email);
+            return ResponseEntity.ok(ApiResponseDto.success("Mis torneos obtenidos", myTournaments));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponseDto.error("Error al obtener mis torneos: " + e.getMessage()));
+        }
+    }
+
     @GetMapping("/{tournamentId}")
     public ResponseEntity<ApiResponseDto<TournamentFullDto>> getTournament(@PathVariable Long tournamentId) {
         try {

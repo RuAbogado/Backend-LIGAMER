@@ -29,6 +29,7 @@ import mx.edu.utez.ligamerbackend.dtos.PlayerStatDto;
 import mx.edu.utez.ligamerbackend.dtos.RadarResponseDto;
 import mx.edu.utez.ligamerbackend.dtos.PieDataDto;
 import mx.edu.utez.ligamerbackend.dtos.TournamentSeriesDto;
+import mx.edu.utez.ligamerbackend.dtos.TournamentSummaryDto;
 import mx.edu.utez.ligamerbackend.dtos.TournamentFullDto;
 import mx.edu.utez.ligamerbackend.dtos.MatchSimpleDto;
 import mx.edu.utez.ligamerbackend.dtos.TeamSimpleDto;
@@ -425,6 +426,25 @@ public class TournamentService {
 
         Tournament saved = tournamentRepository.save(found);
         return toFullDto(saved);
+    }
+
+    public List<TournamentSummaryDto> getMyTournaments(String email) {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
+
+        List<Tournament> tournaments = tournamentRepository.findByCreatedBy(user);
+
+        return tournaments.stream().map(t -> {
+            TournamentSummaryDto dto = new TournamentSummaryDto();
+            dto.setId(t.getId());
+            dto.setName(t.getName());
+            dto.setDescription(t.getDescription());
+            dto.setStartDate(t.getStartDate());
+            dto.setEndDate(t.getEndDate());
+            dto.setEstado(t.getEstado());
+            dto.setTeamCount(t.getTeams() != null ? t.getTeams().size() : 0);
+            return dto;
+        }).collect(Collectors.toList());
     }
 
     // Nuevo método para actualización completa del torneo
