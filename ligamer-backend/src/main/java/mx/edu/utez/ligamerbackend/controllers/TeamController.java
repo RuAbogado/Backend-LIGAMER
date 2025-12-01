@@ -48,7 +48,7 @@ public class TeamController {
         System.out.println("🔑 Authentication: " + authentication);
         System.out.println("👤 Principal: " + (authentication != null ? authentication.getName() : "NULL"));
         System.out.println("🛡️ Authorities: " + (authentication != null ? authentication.getAuthorities() : "NULL"));
-        
+
         List<Team> teams = teamService.listTeams();
         System.out.println("📋 Equipos encontrados: " + teams.size());
         List<Map<String, Object>> response = teams.stream()
@@ -57,14 +57,14 @@ public class TeamController {
                     Map<String, Object> owner = new HashMap<>();
                     owner.put("id", t.getOwner().getId());
                     owner.put("email", t.getOwner().getEmail());
-            Map<String, Object> m = new HashMap<>();
-            m.put("id", t.getId());
-            m.put("name", t.getName());
-            m.put("description", t.getDescription());
-            m.put("logoUrl", t.getLogoUrl());
-            m.put("owner", owner);
-            return m;
-        }).collect(Collectors.toList());
+                    Map<String, Object> m = new HashMap<>();
+                    m.put("id", t.getId());
+                    m.put("name", t.getName());
+                    m.put("description", t.getDescription());
+                    m.put("logoUrl", t.getLogoUrl());
+                    m.put("owner", owner);
+                    return m;
+                }).collect(Collectors.toList());
         return ResponseEntity.ok(response);
     }
 
@@ -74,7 +74,8 @@ public class TeamController {
             Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
             String email = authentication.getName();
             Team team = teamService.getTeam(teamId);
-            boolean isMember = team.getMembers() != null && team.getMembers().stream().anyMatch(u -> u.getEmail().equals(email));
+            boolean isMember = team.getMembers() != null
+                    && team.getMembers().stream().anyMatch(u -> u.getEmail().equals(email));
             Map<String, Object> resp = new HashMap<>();
             resp.put("id", team.getId());
             resp.put("name", team.getName());
@@ -94,6 +95,25 @@ public class TeamController {
                 resp.put("members", members);
             }
             return ResponseEntity.ok(resp);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
+    @GetMapping("/{teamId}/members")
+    public ResponseEntity<?> getTeamMembers(@PathVariable Long teamId) {
+        try {
+            Team team = teamService.getTeam(teamId);
+            List<Map<String, Object>> members = team.getMembers().stream().map(u -> {
+                Map<String, Object> mu = new HashMap<>();
+                mu.put("id", u.getId());
+                mu.put("email", u.getEmail());
+                mu.put("nombre", u.getNombre());
+                mu.put("apellidoPaterno", u.getApellidoPaterno());
+                mu.put("apellidoMaterno", u.getApellidoMaterno());
+                return mu;
+            }).collect(Collectors.toList());
+            return ResponseEntity.ok(members);
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(e.getMessage());
         }
@@ -156,7 +176,7 @@ public class TeamController {
                 userMap.put("apellidoMaterno", j.getUser().getApellidoMaterno());
                 userMap.put("active", j.getUser().isActive());
                 userMap.put("role", j.getUser().getRole().getName());
-                
+
                 Map<String, Object> m = new HashMap<>();
                 m.put("id", j.getId());
                 m.put("user", userMap);
@@ -171,16 +191,17 @@ public class TeamController {
     }
 
     @PutMapping("/{teamId}/join-requests/{requestId}")
-    public ResponseEntity<?> manageJoinRequest(@PathVariable Long teamId, @PathVariable Long requestId, @RequestBody ActionDto actionDto) {
+    public ResponseEntity<?> manageJoinRequest(@PathVariable Long teamId, @PathVariable Long requestId,
+            @RequestBody ActionDto actionDto) {
         System.out.println("🔧 ENTRANDO a manageJoinRequest");
         System.out.println("🆔 TeamId: " + teamId + ", RequestId: " + requestId);
         System.out.println("⚡ Action: " + (actionDto != null ? actionDto.getAction() : "NULL"));
-        
+
         try {
             Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
             String email = authentication.getName();
             System.out.println("👤 Email del usuario: " + email);
-            
+
             JoinRequest jr = teamService.manageJoinRequest(teamId, requestId, actionDto.getAction(), email);
             Map<String, Object> resp = new HashMap<>();
             resp.put("id", jr.getId());

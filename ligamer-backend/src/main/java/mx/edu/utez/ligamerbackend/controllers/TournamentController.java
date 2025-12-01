@@ -97,20 +97,17 @@ public class TournamentController {
     @PutMapping("/{tournamentId}")
     @PreAuthorize("hasAnyAuthority('ROLE_ORGANIZADOR', 'ROLE_ADMINISTRADOR')")
     public ResponseEntity<ApiResponseDto<TournamentFullDto>> update(@PathVariable Long tournamentId,
-<<<<<<< HEAD
-            @RequestBody TournamentFullDto dto) {
-=======
             @RequestBody mx.edu.utez.ligamerbackend.dtos.TournamentUpdateDto dto) {
         System.out.println("🔧 ENTRANDO a update tournament");
         System.out.println("🆔 TournamentId: " + tournamentId);
         System.out.println("📝 DTO recibido: " + (dto != null ? "SÍ" : "NULL"));
-        
+
         try {
             Authentication auth = SecurityContextHolder.getContext().getAuthentication();
             String email = auth.getName();
             System.out.println("👤 Email del usuario: " + email);
             System.out.println("🛡️ Authorities: " + auth.getAuthorities());
-            
+
             TournamentFullDto updated = tournamentService.updateFullTournament(tournamentId, dto, email);
             return ResponseEntity.ok(ApiResponseDto.success("Torneo actualizado exitosamente", updated));
         } catch (RuntimeException e) {
@@ -127,9 +124,8 @@ public class TournamentController {
     // Mantener el endpoint anterior para actualizaciones básicas
     @PutMapping("/{tournamentId}/basic")
     @PreAuthorize("hasAnyAuthority('ROLE_ORGANIZADOR', 'ROLE_ADMINISTRADOR')")
-    public ResponseEntity<ApiResponseDto<TournamentResponseDto>> updateBasic(@PathVariable Long tournamentId,
+    public ResponseEntity<ApiResponseDto<TournamentFullDto>> updateBasic(@PathVariable Long tournamentId,
             @RequestBody TournamentDto dto) {
->>>>>>> 546d07789b88190cd33ad6dca35b430000149064
         try {
             Authentication auth = SecurityContextHolder.getContext().getAuthentication();
             String email = auth.getName();

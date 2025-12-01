@@ -31,13 +31,9 @@ import mx.edu.utez.ligamerbackend.dtos.PieDataDto;
 import mx.edu.utez.ligamerbackend.dtos.TournamentSeriesDto;
 import mx.edu.utez.ligamerbackend.dtos.TournamentFullDto;
 import mx.edu.utez.ligamerbackend.dtos.MatchSimpleDto;
-<<<<<<< HEAD
 import mx.edu.utez.ligamerbackend.dtos.TeamSimpleDto;
-=======
 import java.time.LocalDate;
 import java.util.Map;
-import mx.edu.utez.ligamerbackend.dtos.MatchSimpleDto;
->>>>>>> 546d07789b88190cd33ad6dca35b430000149064
 
 @Service
 @Transactional
@@ -320,6 +316,19 @@ public class TournamentService {
         return dto;
     }
 
+    public TournamentFullDto updateTournament(Long tournamentId, TournamentDto dto, String requesterEmail)
+            throws Exception {
+        TournamentFullDto fullDto = new TournamentFullDto();
+        fullDto.setTournamentName(dto.getName());
+        fullDto.setDescription(dto.getDescription());
+        if (dto.getRules() != null) {
+            fullDto.setRuleList(java.util.Arrays.asList(dto.getRules().split("\n")));
+        }
+        fullDto.setStartDate(dto.getStartDate());
+        fullDto.setEndDate(dto.getEndDate());
+        return updateTournament(tournamentId, fullDto, requesterEmail);
+    }
+
     public TournamentFullDto updateTournament(Long tournamentId, TournamentFullDto dto, String requesterEmail)
             throws Exception {
         // Verificar rol del solicitante
@@ -419,23 +428,24 @@ public class TournamentService {
     }
 
     // Nuevo método para actualización completa del torneo
-    public TournamentFullDto updateFullTournament(Long tournamentId, mx.edu.utez.ligamerbackend.dtos.TournamentUpdateDto dto, String requesterEmail)
+    public TournamentFullDto updateFullTournament(Long tournamentId,
+            mx.edu.utez.ligamerbackend.dtos.TournamentUpdateDto dto, String requesterEmail)
             throws Exception {
         System.out.println("🔧 ENTRANDO a updateFullTournament");
         System.out.println("🆔 TournamentId: " + tournamentId);
         System.out.println("👤 Email del usuario: " + requesterEmail);
-        
+
         // Verificar rol del solicitante
         User requester = userRepository.findByEmail(requesterEmail)
                 .orElseThrow(() -> new RuntimeException("Usuario solicitante no encontrado."));
 
         String roleName = requester.getRole() != null ? requester.getRole().getName() : null;
         System.out.println("🎭 Rol del usuario: " + roleName);
-        
+
         boolean allowed = AppConstants.ROLE_ORGANIZADOR.equals(roleName)
                 || AppConstants.ROLE_ADMINISTRADOR.equals(roleName);
         System.out.println("✅ Usuario autorizado: " + allowed);
-        
+
         if (!allowed) {
             System.out.println("❌ Error: No autorizado");
             throw new Exception("No autorizado.");
@@ -494,19 +504,20 @@ public class TournamentService {
                     Team homeTeam = teamRepository.findByName(ms.getTeam1())
                             .orElseThrow(() -> new RuntimeException("Equipo local no encontrado: " + ms.getTeam1()));
                     Team awayTeam = teamRepository.findByName(ms.getTeam2())
-                            .orElseThrow(() -> new RuntimeException("Equipo visitante no encontrado: " + ms.getTeam2()));
+                            .orElseThrow(
+                                    () -> new RuntimeException("Equipo visitante no encontrado: " + ms.getTeam2()));
 
                     Match match = new Match();
                     match.setTournament(saved);
                     match.setHomeTeam(homeTeam);
                     match.setAwayTeam(awayTeam);
                     match.setNodeId(nodeId);
-                    
+
                     // Establecer fechas
                     if (ms.getDate() != null) {
                         match.setMatchDate(LocalDate.parse(ms.getDate()).atStartOfDay());
                     }
-                    
+
                     // Establecer resultados si existen
                     if (ms.getScore1() != null && !ms.getScore1().isEmpty()) {
                         try {
@@ -519,7 +530,7 @@ public class TournamentService {
                         match.setHomeScore(0);
                         match.setStatus("PENDING");
                     }
-                    
+
                     if (ms.getScore2() != null && !ms.getScore2().isEmpty()) {
                         try {
                             match.setAwayScore(Integer.parseInt(ms.getScore2()));
