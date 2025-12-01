@@ -19,7 +19,7 @@ public class Match {
     private Long id;
 
     @ManyToOne
-    @JoinColumn(name = "tournament_id", nullable = false)
+    @JoinColumn(name = "tournament_id", nullable = true)
     private Tournament tournament;
 
     @ManyToOne
