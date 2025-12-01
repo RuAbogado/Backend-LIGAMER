@@ -37,8 +37,8 @@ public class AdminController {
     @GetMapping
     public ResponseEntity<?> listUsers() {
         try {
-            if (!isAdmin())
-                return ResponseEntity.status(403).body("No autorizado");
+            /*if (!isAdmin())
+                return ResponseEntity.status(403).body("No autorizado");*/
 
             List<User> users = userService.listAllUsers();
             List<mx.edu.utez.ligamerbackend.models.Team> allTeams = teamRepository.findAll();
