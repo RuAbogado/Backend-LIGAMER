@@ -59,9 +59,9 @@ public class TeamService {
 
         // Publicar evento de equipo creado
         eventPublisher.publishEvent(new TeamCreatedEvent(this,
-            savedTeam.getId(),
-            savedTeam.getName(),
-            owner.getEmail()));
+                savedTeam.getId(),
+                savedTeam.getName(),
+                owner.getEmail()));
 
         return savedTeam;
     }
@@ -79,29 +79,34 @@ public class TeamService {
 
     public Team updateTeam(Long teamId, String requesterEmail, TeamDto dto) throws Exception {
         Team team = getTeam(teamId);
-        if (!team.getOwner().getEmail().equals(requesterEmail)) throw new Exception("No autorizado.");
+        if (!team.getOwner().getEmail().equalsIgnoreCase(requesterEmail))
+            throw new Exception("No autorizado.");
 
         if (dto.getName() != null && !dto.getName().equals(team.getName())) {
-            if (teamRepository.findByName(dto.getName()).isPresent()) throw new Exception("Nombre de equipo en uso.");
+            if (teamRepository.findByName(dto.getName()).isPresent())
+                throw new Exception("Nombre de equipo en uso.");
             team.setName(dto.getName());
         }
-        if (dto.getDescription() != null) team.setDescription(dto.getDescription());
-        if (dto.getLogoUrl() != null) team.setLogoUrl(dto.getLogoUrl());
+        if (dto.getDescription() != null)
+            team.setDescription(dto.getDescription());
+        if (dto.getLogoUrl() != null)
+            team.setLogoUrl(dto.getLogoUrl());
 
         Team updatedTeam = teamRepository.save(team);
 
         // Publicar evento de equipo actualizado
         eventPublisher.publishEvent(new TeamUpdatedEvent(this,
-            updatedTeam.getId(),
-            updatedTeam.getName(),
-            requesterEmail));
+                updatedTeam.getId(),
+                updatedTeam.getName(),
+                requesterEmail));
 
         return updatedTeam;
     }
 
     public void deleteTeam(Long teamId, String requesterEmail) throws Exception {
         Team team = getTeam(teamId);
-        if (!team.getOwner().getEmail().equals(requesterEmail)) throw new Exception("No autorizado.");
+        if (!team.getOwner().getEmail().equalsIgnoreCase(requesterEmail))
+            throw new Exception("No autorizado.");
 
         String teamName = team.getName();
         teamRepository.delete(team);
@@ -115,12 +120,15 @@ public class TeamService {
         User user = userRepository.findByEmail(requesterEmail)
                 .orElseThrow(() -> new RuntimeException("Usuario no encontrado."));
 
-        if (team.getMembers() != null && team.getMembers().contains(user)) throw new Exception("Ya eres miembro de este equipo.");
+        if (team.getMembers() != null && team.getMembers().contains(user))
+            throw new Exception("Ya eres miembro de este equipo.");
 
-        if (teamRepository.findByMembersContaining(user).isPresent()) throw new Exception("Ya perteneces a otro equipo.");
+        if (teamRepository.findByMembersContaining(user).isPresent())
+            throw new Exception("Ya perteneces a otro equipo.");
 
         Optional<JoinRequest> existing = joinRequestRepository.findByTeamAndUser(team, user);
-        if (existing.isPresent() && AppConstants.JOIN_REQUEST_PENDING.equals(existing.get().getStatus())) throw new Exception("Ya existe una solicitud pendiente.");
+        if (existing.isPresent() && AppConstants.JOIN_REQUEST_PENDING.equals(existing.get().getStatus()))
+            throw new Exception("Ya existe una solicitud pendiente.");
 
         JoinRequest jr = new JoinRequest();
         jr.setTeam(team);
@@ -131,10 +139,10 @@ public class TeamService {
 
         // Publicar evento de solicitud creada
         eventPublisher.publishEvent(new JoinRequestCreatedEvent(this,
-            savedRequest.getId(),
-            team.getId(),
-            team.getName(),
-            user.getEmail()));
+                savedRequest.getId(),
+                team.getId(),
+                team.getName(),
+                user.getEmail()));
 
         return savedRequest;
     }
@@ -142,24 +150,30 @@ public class TeamService {
     @Transactional(readOnly = true)
     public List<JoinRequest> getJoinRequests(Long teamId, String requesterEmail) throws Exception {
         Team team = getTeam(teamId);
-        if (!team.getOwner().getEmail().equals(requesterEmail)) throw new Exception("No autorizado.");
+        if (!team.getOwner().getEmail().equalsIgnoreCase(requesterEmail))
+            throw new Exception("No autorizado.");
         return joinRequestRepository.findAllByTeamAndStatus(team, AppConstants.JOIN_REQUEST_PENDING);
     }
 
-    public JoinRequest manageJoinRequest(Long teamId, Long requestId, String action, String requesterEmail) throws Exception {
+    public JoinRequest manageJoinRequest(Long teamId, Long requestId, String action, String requesterEmail)
+            throws Exception {
         Team team = getTeam(teamId);
-        if (!team.getOwner().getEmail().equals(requesterEmail)) throw new Exception("No autorizado.");
+        if (!team.getOwner().getEmail().equalsIgnoreCase(requesterEmail))
+            throw new Exception("No autorizado.");
 
         JoinRequest jr = joinRequestRepository.findById(requestId)
                 .orElseThrow(() -> new RuntimeException("Solicitud no encontrada."));
 
-        if (!jr.getTeam().getId().equals(team.getId())) throw new Exception("Solicitud no pertenece a este equipo.");
+        if (!jr.getTeam().getId().equals(team.getId()))
+            throw new Exception("Solicitud no pertenece a este equipo.");
 
         if ("accept".equalsIgnoreCase(action)) {
             User user = jr.getUser();
-            if (teamRepository.findByMembersContaining(user).isPresent()) throw new Exception("El usuario ya pertenece a un equipo.");
+            if (teamRepository.findByMembersContaining(user).isPresent())
+                throw new Exception("El usuario ya pertenece a un equipo.");
             Set<User> members = team.getMembers();
-            if (members == null) members = new HashSet<>();
+            if (members == null)
+                members = new HashSet<>();
             members.add(user);
             team.setMembers(members);
             jr.setStatus(AppConstants.JOIN_REQUEST_ACCEPTED);
@@ -168,11 +182,11 @@ public class TeamService {
 
             // Publicar evento de solicitud aceptada
             eventPublisher.publishEvent(new JoinRequestAcceptedEvent(this,
-                savedRequest.getId(),
-                team.getId(),
-                team.getName(),
-                user.getEmail(),
-                requesterEmail));
+                    savedRequest.getId(),
+                    team.getId(),
+                    team.getName(),
+                    user.getEmail(),
+                    requesterEmail));
 
             return savedRequest;
         } else if ("reject".equalsIgnoreCase(action)) {
@@ -181,11 +195,11 @@ public class TeamService {
 
             // Publicar evento de solicitud rechazada
             eventPublisher.publishEvent(new JoinRequestRejectedEvent(this,
-                savedRequest.getId(),
-                team.getId(),
-                team.getName(),
-                jr.getUser().getEmail(),
-                requesterEmail));
+                    savedRequest.getId(),
+                    team.getId(),
+                    team.getName(),
+                    jr.getUser().getEmail(),
+                    requesterEmail));
 
             return savedRequest;
         } else {
@@ -198,31 +212,35 @@ public class TeamService {
         User user = userRepository.findByEmail(requesterEmail)
                 .orElseThrow(() -> new RuntimeException("Usuario no encontrado."));
 
-        if (team.getOwner().getId().equals(user.getId())) throw new Exception("El dueño no puede abandonar el equipo.");
+        if (team.getOwner().getId().equals(user.getId()))
+            throw new Exception("El dueño no puede abandonar el equipo.");
 
         Set<User> members = team.getMembers();
-        if (members == null || !members.removeIf(u -> u.getId().equals(user.getId()))) throw new Exception("No eres miembro del equipo.");
+        if (members == null || !members.removeIf(u -> u.getId().equals(user.getId())))
+            throw new Exception("No eres miembro del equipo.");
         team.setMembers(members);
         teamRepository.save(team);
 
         // Publicar evento de usuario abandonó equipo
         eventPublisher.publishEvent(new UserLeftTeamEvent(this,
-            team.getId(),
-            team.getName(),
-            user.getEmail()));
+                team.getId(),
+                team.getName(),
+                user.getEmail()));
     }
 
     public void removeMember(Long teamId, Long userId, String requesterEmail) throws Exception {
         Team team = getTeam(teamId);
-        if (!team.getOwner().getEmail().equals(requesterEmail)) throw new Exception("No autorizado.");
-        if (team.getOwner().getId().equals(userId)) throw new Exception("No puedes expulsar al dueño.");
+        if (!team.getOwner().getEmail().equalsIgnoreCase(requesterEmail))
+            throw new Exception("No autorizado.");
+        if (team.getOwner().getId().equals(userId))
+            throw new Exception("No puedes expulsar al dueño.");
 
         Set<User> members = team.getMembers();
         boolean removed = members != null && members.removeIf(u -> u.getId().equals(userId));
-        if (!removed) throw new Exception("El usuario no es miembro del equipo.");
+        if (!removed)
+            throw new Exception("El usuario no es miembro del equipo.");
 
         team.setMembers(members);
         teamRepository.save(team);
     }
 }
-
