@@ -35,7 +35,7 @@ public class AdminController {
     }
 
     @Autowired
-    private mx.edu.utez.ligamerbackend.repositories.StandingRepository standingRepository;
+    private mx.edu.utez.ligamerbackend.repositories.MatchRepository matchRepository;
 
     @GetMapping
     public ResponseEntity<?> listUsers() {
@@ -57,20 +57,6 @@ public class AdminController {
                 }
             }
 
-            // Pre-fetch all standings to avoid N+1
-            List<mx.edu.utez.ligamerbackend.models.Standing> allStandings = standingRepository.findAll();
-            Map<Long, int[]> teamStatsMap = new HashMap<>(); // TeamId -> [wins, losses]
-
-            for (mx.edu.utez.ligamerbackend.models.Standing s : allStandings) {
-                if (s.getTeam() != null) {
-                    long tid = s.getTeam().getId();
-                    int[] stats = teamStatsMap.getOrDefault(tid, new int[] { 0, 0 });
-                    stats[0] += (s.getWon() != null ? s.getWon() : 0);
-                    stats[1] += (s.getLost() != null ? s.getLost() : 0);
-                    teamStatsMap.put(tid, stats);
-                }
-            }
-
             List<Map<String, Object>> resp = users.stream().map(u -> {
                 Map<String, Object> m = new HashMap<>();
                 m.put("id", u.getId());
@@ -84,13 +70,16 @@ public class AdminController {
 
                 mx.edu.utez.ligamerbackend.models.Team t = userTeamMap.get(u.getId());
                 if (t != null) {
+                    m.put("teamId", t.getId());
                     m.put("teamName", t.getName());
                     m.put("teamMemberCount", t.getMembers() != null ? t.getMembers().size() : 0);
 
-                    int[] stats = teamStatsMap.getOrDefault(t.getId(), new int[] { 0, 0 });
-                    m.put("victorias", stats[0]);
-                    m.put("derrotas", stats[1]);
+                    Integer wins = matchRepository.countTotalWins(t.getId());
+                    Integer losses = matchRepository.countTotalLosses(t.getId());
+                    m.put("victorias", wins != null ? wins : 0);
+                    m.put("derrotas", losses != null ? losses : 0);
                 } else {
+                    m.put("teamId", null);
                     m.put("teamName", null);
                     m.put("teamMemberCount", 0);
                     m.put("victorias", 0);
@@ -132,15 +121,17 @@ public class AdminController {
             }
 
             if (userTeam != null) {
+                m.put("teamId", userTeam.getId());
                 m.put("teamName", userTeam.getName());
                 m.put("teamMemberCount", userTeam.getMembers() != null ? userTeam.getMembers().size() : 0);
 
-                Integer wins = standingRepository.sumWonByTeamId(userTeam.getId());
-                Integer losses = standingRepository.sumLostByTeamId(userTeam.getId());
+                Integer wins = matchRepository.countTotalWins(userTeam.getId());
+                Integer losses = matchRepository.countTotalLosses(userTeam.getId());
 
                 m.put("victorias", wins != null ? wins : 0);
                 m.put("derrotas", losses != null ? losses : 0);
             } else {
+                m.put("teamId", null);
                 m.put("teamName", null);
                 m.put("teamMemberCount", 0);
                 m.put("victorias", 0);

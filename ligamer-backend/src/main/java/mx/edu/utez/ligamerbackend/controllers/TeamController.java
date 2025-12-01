@@ -27,13 +27,29 @@ public class TeamController {
     private UserService userService;
 
     @Autowired
-    private mx.edu.utez.ligamerbackend.repositories.StandingRepository standingRepository;
+    private mx.edu.utez.ligamerbackend.repositories.MatchRepository matchRepository;
 
-    @PostMapping
-    public ResponseEntity<?> createTeam(@RequestBody TeamDto teamDto) {
+    @Autowired
+    private mx.edu.utez.ligamerbackend.services.FileStorageService fileStorageService;
+
+    @PostMapping(consumes = { "multipart/form-data" })
+    public ResponseEntity<?> createTeam(
+            @RequestParam("name") String name,
+            @RequestParam("description") String description,
+            @RequestParam(value = "image", required = false) org.springframework.web.multipart.MultipartFile image) {
         try {
             Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
             String email = authentication.getName();
+
+            TeamDto teamDto = new TeamDto();
+            teamDto.setName(name);
+            teamDto.setDescription(description);
+
+            if (image != null && !image.isEmpty()) {
+                String logoUrl = fileStorageService.store(image);
+                teamDto.setLogoUrl(logoUrl);
+            }
+
             Team team = teamService.createTeam(email, teamDto);
             Map<String, Object> resp = new HashMap<>();
             resp.put("id", team.getId());
@@ -110,8 +126,8 @@ public class TeamController {
             Team team = teamService.getTeam(teamId);
 
             // Calcular estadísticas del equipo
-            Integer wins = standingRepository.sumWonByTeamId(teamId);
-            Integer losses = standingRepository.sumLostByTeamId(teamId);
+            Integer wins = matchRepository.countTotalWins(teamId);
+            Integer losses = matchRepository.countTotalLosses(teamId);
             int teamWins = wins != null ? wins : 0;
             int teamLosses = losses != null ? losses : 0;
 
@@ -134,11 +150,27 @@ public class TeamController {
         }
     }
 
-    @PutMapping("/{teamId}")
-    public ResponseEntity<?> updateTeam(@PathVariable Long teamId, @RequestBody TeamDto teamDto) {
+    @PutMapping(value = "/{teamId}", consumes = { "multipart/form-data" })
+    public ResponseEntity<?> updateTeam(
+            @PathVariable Long teamId,
+            @RequestParam(value = "name", required = false) String name,
+            @RequestParam(value = "description", required = false) String description,
+            @RequestParam(value = "image", required = false) org.springframework.web.multipart.MultipartFile image) {
         try {
             Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
             String email = authentication.getName();
+
+            TeamDto teamDto = new TeamDto();
+            if (name != null)
+                teamDto.setName(name);
+            if (description != null)
+                teamDto.setDescription(description);
+
+            if (image != null && !image.isEmpty()) {
+                String logoUrl = fileStorageService.store(image);
+                teamDto.setLogoUrl(logoUrl);
+            }
+
             Team team = teamService.updateTeam(teamId, email, teamDto);
             Map<String, Object> resp = new HashMap<>();
             resp.put("id", team.getId());
