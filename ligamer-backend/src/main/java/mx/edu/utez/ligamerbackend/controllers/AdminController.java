@@ -100,48 +100,62 @@ public class AdminController {
             // Permitir acceso a cualquier usuario autenticado
             // if (!isAdmin()) return ResponseEntity.status(403).body("No autorizado");
             User user = userService.getUserById(userId);
-            Map<String, Object> m = new HashMap<>();
-            m.put("id", user.getId());
-            m.put("email", user.getEmail());
-            m.put("username", user.getUsername());
-            m.put("nombre", user.getNombre());
-            m.put("apellidoPaterno", user.getApellidoPaterno());
-            m.put("apellidoMaterno", user.getApellidoMaterno());
-            m.put("active", user.isActive());
-            m.put("role", user.getRole() != null ? user.getRole().getName() : null);
-
-            // Buscar equipo del usuario
-            List<mx.edu.utez.ligamerbackend.models.Team> allTeams = teamRepository.findAll();
-            mx.edu.utez.ligamerbackend.models.Team userTeam = null;
-            for (mx.edu.utez.ligamerbackend.models.Team t : allTeams) {
-                if (t.getMembers() != null && t.getMembers().stream().anyMatch(u -> u.getId().equals(userId))) {
-                    userTeam = t;
-                    break;
-                }
-            }
-
-            if (userTeam != null) {
-                m.put("teamId", userTeam.getId());
-                m.put("teamName", userTeam.getName());
-                m.put("teamMemberCount", userTeam.getMembers() != null ? userTeam.getMembers().size() : 0);
-
-                Integer wins = matchRepository.countTotalWins(userTeam.getId());
-                Integer losses = matchRepository.countTotalLosses(userTeam.getId());
-
-                m.put("victorias", wins != null ? wins : 0);
-                m.put("derrotas", losses != null ? losses : 0);
-            } else {
-                m.put("teamId", null);
-                m.put("teamName", null);
-                m.put("teamMemberCount", 0);
-                m.put("victorias", 0);
-                m.put("derrotas", 0);
-            }
-
-            return ResponseEntity.ok(m);
+            return buildUserResponse(user);
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(e.getMessage());
         }
+    }
+
+    @GetMapping("/search")
+    public ResponseEntity<?> getUserByEmail(@RequestParam("email") String email) {
+        try {
+            User user = userService.findByEmail(email);
+            return buildUserResponse(user);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body("Usuario no encontrado con el email: " + email);
+        }
+    }
+
+    private ResponseEntity<?> buildUserResponse(User user) {
+        Map<String, Object> m = new HashMap<>();
+        m.put("id", user.getId());
+        m.put("email", user.getEmail());
+        m.put("username", user.getUsername());
+        m.put("nombre", user.getNombre());
+        m.put("apellidoPaterno", user.getApellidoPaterno());
+        m.put("apellidoMaterno", user.getApellidoMaterno());
+        m.put("active", user.isActive());
+        m.put("role", user.getRole() != null ? user.getRole().getName() : null);
+
+        // Buscar equipo del usuario
+        List<mx.edu.utez.ligamerbackend.models.Team> allTeams = teamRepository.findAll();
+        mx.edu.utez.ligamerbackend.models.Team userTeam = null;
+        for (mx.edu.utez.ligamerbackend.models.Team t : allTeams) {
+            if (t.getMembers() != null && t.getMembers().stream().anyMatch(u -> u.getId().equals(user.getId()))) {
+                userTeam = t;
+                break;
+            }
+        }
+
+        if (userTeam != null) {
+            m.put("teamId", userTeam.getId());
+            m.put("teamName", userTeam.getName());
+            m.put("teamMemberCount", userTeam.getMembers() != null ? userTeam.getMembers().size() : 0);
+
+            Integer wins = matchRepository.countTotalWins(userTeam.getId());
+            Integer losses = matchRepository.countTotalLosses(userTeam.getId());
+
+            m.put("victorias", wins != null ? wins : 0);
+            m.put("derrotas", losses != null ? losses : 0);
+        } else {
+            m.put("teamId", null);
+            m.put("teamName", null);
+            m.put("teamMemberCount", 0);
+            m.put("victorias", 0);
+            m.put("derrotas", 0);
+        }
+
+        return ResponseEntity.ok(m);
     }
 
     @PutMapping("/{userId}")
