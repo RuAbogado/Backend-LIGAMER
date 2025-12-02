@@ -142,6 +142,10 @@ public class AdminController {
             m.put("teamName", userTeam.getName());
             m.put("teamMemberCount", userTeam.getMembers() != null ? userTeam.getMembers().size() : 0);
 
+            // Validar si es el owner
+            boolean isOwner = userTeam.getOwner() != null && userTeam.getOwner().getId().equals(user.getId());
+            m.put("isOwner", isOwner);
+
             Integer wins = matchRepository.countTotalWins(userTeam.getId());
             Integer losses = matchRepository.countTotalLosses(userTeam.getId());
 
@@ -151,6 +155,7 @@ public class AdminController {
             m.put("teamId", null);
             m.put("teamName", null);
             m.put("teamMemberCount", 0);
+            m.put("isOwner", false);
             m.put("victorias", 0);
             m.put("derrotas", 0);
         }

@@ -34,7 +34,7 @@ public class TournamentController {
         String email = auth.getName();
         String authorities = auth.getAuthorities().toString();
         String message = "Usuario: " + email + " | Authorities: " + authorities;
-        System.out.println("🧪 TEST AUTH: " + message);
+        System.out.println("TEST AUTH: " + message);
         return ResponseEntity.ok(ApiResponseDto.success("Test de autenticación exitoso", message));
     }
 
@@ -113,24 +113,24 @@ public class TournamentController {
     @PreAuthorize("hasAnyAuthority('ROLE_ORGANIZADOR', 'ROLE_ADMINISTRADOR')")
     public ResponseEntity<ApiResponseDto<TournamentFullDto>> update(@PathVariable Long tournamentId,
             @RequestBody mx.edu.utez.ligamerbackend.dtos.TournamentUpdateDto dto) {
-        System.out.println("🔧 ENTRANDO a update tournament");
-        System.out.println("🆔 TournamentId: " + tournamentId);
-        System.out.println("📝 DTO recibido: " + (dto != null ? "SÍ" : "NULL"));
+        System.out.println("ENTRANDO a update tournament");
+        System.out.println("TournamentId: " + tournamentId);
+        System.out.println("DTO recibido: " + (dto != null ? "SÍ" : "NULL"));
 
         try {
             Authentication auth = SecurityContextHolder.getContext().getAuthentication();
             String email = auth.getName();
-            System.out.println("👤 Email del usuario: " + email);
-            System.out.println("🛡️ Authorities: " + auth.getAuthorities());
+            System.out.println("Email del usuario: " + email);
+            System.out.println("Authorities: " + auth.getAuthorities());
 
             TournamentFullDto updated = tournamentService.updateFullTournament(tournamentId, dto, email);
             return ResponseEntity.ok(ApiResponseDto.success("Torneo actualizado exitosamente", updated));
         } catch (RuntimeException e) {
-            System.out.println("❌ RuntimeException: " + e.getMessage());
+            System.out.println("RuntimeException: " + e.getMessage());
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
                     .body(ApiResponseDto.notFound(e.getMessage()));
         } catch (Exception e) {
-            System.out.println("❌ Exception: " + e.getMessage());
+            System.out.println("Exception: " + e.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(ApiResponseDto.error("Error al actualizar el torneo: " + e.getMessage()));
         }
@@ -264,11 +264,11 @@ public class TournamentController {
     public ResponseEntity<ApiResponseDto<MatchDto>> registerMatchResult(
             @PathVariable Long matchId,
             @RequestBody MatchResultDto resultDto) {
-        System.out.println("🎯 ENTRANDO a registerMatchResult - matchId: " + matchId);
+        System.out.println("ENTRANDO a registerMatchResult - matchId: " + matchId);
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        System.out.println("🔑 Authentication: " + auth);
-        System.out.println("👤 Principal: " + (auth != null ? auth.getName() : "NULL"));
-        System.out.println("🛡️ Authorities: " + (auth != null ? auth.getAuthorities() : "NULL"));
+        System.out.println("Authentication: " + auth);
+        System.out.println("Principal: " + (auth != null ? auth.getName() : "NULL"));
+        System.out.println("Authorities: " + (auth != null ? auth.getAuthorities() : "NULL"));
 
         try {
             String email = auth.getName();
