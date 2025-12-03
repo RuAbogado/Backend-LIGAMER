@@ -259,7 +259,62 @@ public class TournamentController {
         }
     }
 
-    @PostMapping("/matches/{matchId}/result")
+    // --- Join Requests Endpoints ---
+
+    @PostMapping("/{tournamentId}/join-requests")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<?> createJoinRequest(@PathVariable Long tournamentId,
+            @RequestBody java.util.Map<String, Long> body) {
+        try {
+            Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+            String email = auth.getName();
+            Long teamId = body.get("teamId");
+            if (teamId == null) {
+                return ResponseEntity.badRequest().body("El teamId es obligatorio.");
+            }
+            tournamentService.createJoinRequest(tournamentId, teamId, email);
+            return ResponseEntity.ok(ApiResponseDto.success("Solicitud enviada exitosamente", null));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(ApiResponseDto.error(e.getMessage()));
+        }
+    }
+
+    @GetMapping("/{tournamentId}/join-requests")
+    @PreAuthorize("hasAnyAuthority('ROLE_ORGANIZADOR', 'ROLE_ADMINISTRADOR')")
+    public ResponseEntity<?> getJoinRequests(@PathVariable Long tournamentId) {
+        try {
+            Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+            String email = auth.getName();
+            List<java.util.Map<String, Object>> requests = tournamentService.getJoinRequests(tournamentId, email);
+            return ResponseEntity.ok(ApiResponseDto.success("Solicitudes obtenidas", requests));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(ApiResponseDto.error(e.getMessage()));
+        }
+    }
+
+    @PutMapping("/{tournamentId}/join-requests/{requestId}")
+    @PreAuthorize("hasAnyAuthority('ROLE_ORGANIZADOR', 'ROLE_ADMINISTRADOR')")
+    public ResponseEntity<?> respondToJoinRequest(
+            @PathVariable Long tournamentId,
+            @PathVariable Long requestId,
+            @RequestBody java.util.Map<String, String> body) {
+        try {
+            Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+            String email = auth.getName();
+            String status = body.get("status"); // ACCEPTED, REJECTED
+            if (status == null) {
+                return ResponseEntity.badRequest().body("El status es obligatorio.");
+            }
+            tournamentService.respondToJoinRequest(requestId, status, email);
+            return ResponseEntity.ok(ApiResponseDto.success("Solicitud procesada exitosamente", null));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(ApiResponseDto.error(e.getMessage()));
+        }
+    }
+
+    // --- Match Result Endpoints ---
+
+    @PostMapping("/{tournamentId}/matches/{matchId}/result")
     @PreAuthorize("hasAnyAuthority('ROLE_ORGANIZADOR', 'ROLE_ADMINISTRADOR')")
     public ResponseEntity<ApiResponseDto<MatchDto>> registerMatchResult(
             @PathVariable Long matchId,

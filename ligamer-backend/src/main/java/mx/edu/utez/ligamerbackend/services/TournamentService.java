@@ -13,7 +13,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
-import mx.edu.utez.ligamerbackend.dtos.TeamSummaryDto;
 import mx.edu.utez.ligamerbackend.dtos.TournamentDetailResponseDto;
 import mx.edu.utez.ligamerbackend.models.Team;
 import mx.edu.utez.ligamerbackend.repositories.TeamRepository;
@@ -26,15 +25,11 @@ import mx.edu.utez.ligamerbackend.models.Match;
 import mx.edu.utez.ligamerbackend.repositories.StandingRepository;
 import mx.edu.utez.ligamerbackend.repositories.MatchRepository;
 import mx.edu.utez.ligamerbackend.dtos.PlayerStatDto;
-import mx.edu.utez.ligamerbackend.dtos.RadarResponseDto;
-import mx.edu.utez.ligamerbackend.dtos.PieDataDto;
-import mx.edu.utez.ligamerbackend.dtos.TournamentSeriesDto;
 import mx.edu.utez.ligamerbackend.dtos.TournamentSummaryDto;
 import mx.edu.utez.ligamerbackend.dtos.TournamentFullDto;
 import mx.edu.utez.ligamerbackend.dtos.MatchSimpleDto;
 import mx.edu.utez.ligamerbackend.dtos.TeamSimpleDto;
 import java.time.LocalDate;
-import java.util.Map;
 
 @Service
 @Transactional
@@ -1150,5 +1145,136 @@ public class TournamentService {
         }
 
         return res;
+    }
+
+    @Autowired
+    private mx.edu.utez.ligamerbackend.repositories.TournamentJoinRequestRepository tournamentJoinRequestRepository;
+
+    public void createJoinRequest(Long tournamentId, Long teamId, String requesterEmail) throws Exception {
+        Tournament tournament = tournamentRepository.findById(tournamentId)
+                .orElseThrow(() -> new RuntimeException("Torneo no encontrado."));
+
+        Team team = teamRepository.findById(teamId)
+                .orElseThrow(() -> new RuntimeException("Equipo no encontrado."));
+
+        User requester = userRepository.findByEmail(requesterEmail)
+                .orElseThrow(() -> new RuntimeException("Usuario no encontrado."));
+
+        // Validar que el solicitante sea el dueño del equipo
+        if (!team.getOwner().getId().equals(requester.getId())) {
+            throw new RuntimeException("Solo el dueño del equipo puede solicitar unirse.");
+        }
+
+        // Validar si ya está inscrito
+        if (tournament.getTeams().contains(team)) {
+            throw new RuntimeException("El equipo ya está inscrito en el torneo.");
+        }
+
+        // Validar si ya existe una solicitud pendiente
+        if (tournamentJoinRequestRepository.findByTournamentIdAndTeamId(tournamentId, teamId).isPresent()) {
+            throw new RuntimeException(
+                    "Ya existe una solicitud pendiente o procesada para este equipo en este torneo.");
+        }
+
+        mx.edu.utez.ligamerbackend.models.TournamentJoinRequest request = new mx.edu.utez.ligamerbackend.models.TournamentJoinRequest();
+        request.setTournament(tournament);
+        request.setTeam(team);
+        request.setStatus("PENDING");
+        tournamentJoinRequestRepository.save(request);
+    }
+
+    public List<Map<String, Object>> getJoinRequests(Long tournamentId, String requesterEmail) throws Exception {
+        Tournament tournament = tournamentRepository.findById(tournamentId)
+                .orElseThrow(() -> new RuntimeException("Torneo no encontrado."));
+
+        User requester = userRepository.findByEmail(requesterEmail)
+                .orElseThrow(() -> new RuntimeException("Usuario no encontrado."));
+
+        // Validar que sea organizador o admin
+        String roleName = requester.getRole() != null ? requester.getRole().getName() : null;
+        boolean isOrganizerOrAdmin = AppConstants.ROLE_ORGANIZADOR.equals(roleName) ||
+                AppConstants.ROLE_ADMINISTRADOR.equals(roleName);
+
+        // Opcional: Validar que sea el creador del torneo si es organizador
+        if (!isOrganizerOrAdmin) {
+            throw new RuntimeException("No autorizado.");
+        }
+
+        List<mx.edu.utez.ligamerbackend.models.TournamentJoinRequest> requests = tournamentJoinRequestRepository
+                .findByTournamentId(tournamentId);
+
+        return requests.stream().map(r -> {
+            Map<String, Object> map = new java.util.HashMap<>();
+            map.put("id", r.getId());
+            map.put("teamId", r.getTeam().getId());
+            map.put("teamName", r.getTeam().getName());
+            map.put("teamLogo", r.getTeam().getLogoUrl());
+            map.put("status", r.getStatus());
+            map.put("requestDate", r.getRequestDate());
+            return map;
+        }).collect(Collectors.toList());
+    }
+
+    public void respondToJoinRequest(Long requestId, String status, String requesterEmail) throws Exception {
+        mx.edu.utez.ligamerbackend.models.TournamentJoinRequest request = tournamentJoinRequestRepository
+                .findById(requestId)
+                .orElseThrow(() -> new RuntimeException("Solicitud no encontrada."));
+
+        User requester = userRepository.findByEmail(requesterEmail)
+                .orElseThrow(() -> new RuntimeException("Usuario no encontrado."));
+
+        // Validar permisos (Organizador/Admin)
+        String roleName = requester.getRole() != null ? requester.getRole().getName() : null;
+        boolean isOrganizerOrAdmin = AppConstants.ROLE_ORGANIZADOR.equals(roleName) ||
+                AppConstants.ROLE_ADMINISTRADOR.equals(roleName);
+        if (!isOrganizerOrAdmin) {
+            throw new RuntimeException("No autorizado.");
+        }
+
+        if ("ACCEPTED".equalsIgnoreCase(status)) {
+            Tournament tournament = request.getTournament();
+            Team team = request.getTeam();
+
+            // 1. Validar límite de equipos del torneo
+            if (tournament.getNumTeams() != null && tournament.getTeams().size() >= tournament.getNumTeams()) {
+                throw new RuntimeException(
+                        "No se puede aceptar la solicitud: El torneo ha alcanzado el límite de equipos.");
+            }
+
+            // 2. Validar disponibilidad de huecos en los partidos (si ya existen partidos)
+            List<Match> matches = matchRepository.findByTournamentOrderByMatchDateAsc(tournament);
+            if (!matches.isEmpty()) {
+                boolean hasSlot = matches.stream().anyMatch(m -> m.getHomeTeam() == null || m.getAwayTeam() == null);
+                if (!hasSlot) {
+                    throw new RuntimeException(
+                            "No se puede aceptar la solicitud: Ya no hay cupos disponibles en el calendario de partidos.");
+                }
+            }
+
+            request.setStatus("ACCEPTED");
+
+            if (!tournament.getTeams().contains(team)) {
+                tournament.getTeams().add(team);
+                team.getTournaments().add(tournament);
+                tournamentRepository.save(tournament);
+
+                // --- Lógica de Asignación a Match (Slot Filling) ---
+                // Buscamos el primer partido con hueco y asignamos
+                for (Match m : matches) {
+                    if (m.getHomeTeam() == null) {
+                        m.setHomeTeam(team);
+                        matchRepository.save(m);
+                        break; // Asignado a un slot, terminamos
+                    } else if (m.getAwayTeam() == null) {
+                        m.setAwayTeam(team);
+                        matchRepository.save(m);
+                        break; // Asignado a un slot, terminamos
+                    }
+                }
+            }
+        } else {
+            request.setStatus("REJECTED");
+        }
+        tournamentJoinRequestRepository.save(request);
     }
 }
